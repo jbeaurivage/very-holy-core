@@ -1,0 +1,32 @@
+import types::ImmSource;
+
+module Signext (
+    // In
+    raw_src   : input logic<25>,
+    imm_source: input logic<3> ,
+
+    // Out
+    immediate: output logic<32>,
+) {
+    assign immediate = case imm_source {
+        // I-types
+        ImmSource::i_type: {raw_src[24] repeat 20, raw_src[24:13]},
+
+        // S-types
+        ImmSource::s_type: {raw_src[24] repeat 20, raw_src[24:18], raw_src[4:0]},
+
+        // B-types
+        ImmSource::b_type: {raw_src[24] repeat 20, raw_src[0], raw_src[23:18], raw_src[4:1], 1'b0},
+
+        // J-types
+        ImmSource::j_type: {raw_src[24] repeat 12, raw_src[12:5], raw_src[13], raw_src[23:14], 1'b0},
+
+        // U-types
+        ImmSource::u_type: {raw_src[24:5], 1'b0 repeat 12},
+
+        default: 32'b0,
+    };
+}
+
+#[test(test_signext, Signext)]
+include (cocotb, "tb/signext.py");

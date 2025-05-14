@@ -1,0 +1,17 @@
+verilator
+sim_build
+__pycache__
+results.xml
+*.None
+*.odg#
+new.hex
+temp.py
+*.vcd
+**/.pytest_cache
+
+vivado/
+
+dependencies/
+.build/
+target/
+*.f

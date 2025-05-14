@@ -1,0 +1,97 @@
+package types {
+    /// Cache state
+    enum CacheState: logic<3> {
+        idle = 3'b000,
+        sending_write_req = 3'b001,
+        sending_write_data = 3'b010,
+        waiting_write_res = 3'b011,
+        sending_read_req = 3'b100,
+        receiving_read_data = 3'b101,
+    }
+
+    /// Instruction opcodes
+    enum Opcode: logic<7> {
+        r_type = 7'b0110011,
+        i_type_alu = 7'b0010011,
+        i_type_load = 7'b0000011,
+        s_type = 7'b0100011,
+        b_type = 7'b1100011,
+        u_type_lui = 7'b0110111,
+        u_type_auipc = 7'b0010111,
+        j_type = 7'b1101111,
+        j_type_jalr = 7'b1100111,
+    }
+
+    /// ALU ops for ALU decoder
+    enum AluOp: logic<2> {
+        load_store = 2'b00,
+        branches = 2'b01,
+        math = 2'b10,
+    }
+
+    /// "Math" f3 (R&I instruction types)
+    enum Funct3: logic<3> {
+        add_sub = 3'b000,
+        sll = 3'b001,
+        slt = 3'b010,
+        sltu = 3'b011,
+        xor = 3'b100,
+        srl_sra = 3'b101,
+        or = 3'b110,
+        and = 3'b111,
+    }
+
+    /// "Branches" f3
+    enum BranchFunct3: logic<3> {
+        beq = 3'b000,
+        bne = 3'b001,
+        blt = 3'b100,
+        bge = 3'b101,
+        bltu = 3'b110,
+        bgeu = 3'b111,
+    }
+
+    /// "Load & Store" f3
+    enum LoadStoreFunct3: logic<3> {
+        word = 3'b010,
+        byte = 3'b000,
+        byte_u = 3'b100,
+        halfword = 3'b001,
+        halfword_u = 3'b101,
+    }
+
+    /// F7 for shifts
+    enum ShiftsF7: logic<7> {
+        sll_srl = 7'b0000000,
+        sra = 7'b0100000,
+    }
+
+    /// F7 for R-Types
+    enum RtypeFunct7: logic<7> {
+        add = 7'b0000000,
+        sub = 7'b0100000,
+    }
+
+    /// ALU control arithmetic opcodes
+    enum AluControl: logic<4> {
+        add = 4'b0000,
+        sub = 4'b0001,
+        and = 4'b0010,
+        or = 4'b0011,
+        sll = 4'b0100,
+        slt = 4'b0101,
+        srl = 4'b0110,
+        sltu = 4'b0111,
+        xor = 4'b1000,
+        sra = 4'b1001,
+    }
+
+    /// Immediate source
+    enum ImmSource: logic<3> {
+        i_type = 3'b000,
+        s_type = 3'b001,
+        b_type = 3'b010,
+        j_type = 3'b011,
+        u_type = 3'b100,
+    }
+}

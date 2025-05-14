@@ -1,0 +1,84 @@
+import types::LoadStoreFunct3;
+
+module Reader (
+    // In
+    mem_data: input logic<32>,
+    /// Byte-enable mask
+    be_mask: input logic<4>,
+    f3     : input logic<3>,
+
+    // Out
+    wb_data: output logic<32>,
+    valid  : output bool     ,
+) {
+    let sign_extend: logic = ~f3[2];
+
+    // Data with byte-enable mask applied
+    var masked_data: logic<32>;
+    // Data shifted according to instruction
+    var raw_data: logic<32>;
+    // ...and then mem_data is the final output with sign extension
+
+    // Apply mask
+    always_comb {
+        for i: u8 in 0..4 {
+            if be_mask[i[1:0]] {
+                masked_data[(i * 8)+:8] = mem_data[(i * 8)+:8];
+            } else {
+                masked_data[(i * 8)+:8] = 8'h0;
+            }
+        }
+    }
+
+    // Shift data
+    always_comb {
+        case f3 {
+            // Masked data is full word in this case
+            LoadStoreFunct3::word: raw_data = masked_data;
+            // LB, LBU
+            LoadStoreFunct3::byte, LoadStoreFunct3::byte_u: {
+                                                                case be_mask {
+                                                                    4'b0001: raw_data = masked_data;
+                                                                    4'b0010: raw_data = masked_data >> 8;
+                                                                    4'b0100: raw_data = masked_data >> 16;
+                                                                    4'b1000: raw_data = masked_data >> 24;
+
+                                                                    default: raw_data = 0;
+                                                                }
+                                                            }
+
+
+                                                            // LH, LHU
+            LoadStoreFunct3::halfword, LoadStoreFunct3::halfword_u: {
+                                                                        case be_mask {
+                                                                            4'b0011: raw_data = masked_data;
+                                                                            4'b1100: raw_data = masked_data >> 16;
+
+                                                                            default: raw_data = 0;
+                                                                        }
+                                                                    }
+
+            default: raw_data = 0;
+        }
+    }
+
+    // Sign extend logic
+    always_comb {
+        case f3 {
+            LoadStoreFunct3::word: wb_data = raw_data;
+
+            // LB, LBU
+            LoadStoreFunct3::byte, LoadStoreFunct3::byte_u: wb_data = if sign_extend ? {raw_data[7] repeat 24, raw_data[7:0]} : raw_data;
+
+            // LH, LHU
+            LoadStoreFunct3::halfword, LoadStoreFunct3::halfword_u: wb_data = if sign_extend ? {raw_data[15] repeat 16, raw_data[15:0]} : raw_data;
+
+            default: wb_data = 0;
+        }
+
+        valid = |be_mask;
+    }
+}
+
+#[test(test_reader, Reader)]
+include (cocotb, "tb/reader.py");

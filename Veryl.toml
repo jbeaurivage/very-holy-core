@@ -1,0 +1,16 @@
+[project]
+name = "very_holy_core"
+version = "0.1.0"
+authors = ["Justin Beaurivage <code@beaurivage.io>"]
+
+[build]
+clock_type = "posedge"
+reset_type = "async_low"
+
+source = "src"
+target = { type = "directory", path = "target/veryl" }
+
+[test]
+waveform_target = { type = "directory", path = "target/waveform" }
+
+[test.verilator]

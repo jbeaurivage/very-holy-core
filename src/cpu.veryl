@@ -1,0 +1,214 @@
+import types::*;
+
+module Cpu (
+    clk  : input clock,
+    rst_n: input reset,
+) {
+    // Program counter
+    var pc                : logic<32>;
+    var pc_next           : logic<32>;
+    var pc_plus_second_add: logic<32>;
+    let pc_plus_four      : logic<32> = pc + 4;
+
+    assign pc_next = case pc_source {
+        1'b1   : pc_plus_second_add,
+        default: pc_plus_four,
+    };
+
+    assign pc_plus_second_add = case second_add_source {
+        2'b00  : pc + immediate,
+        2'b01  : immediate,
+        2'b10  : read_reg1 + immediate,
+        default: 0,
+    };
+
+    always_ff {
+        if_reset {
+            pc = 0;
+        } else {
+            pc = pc_next;
+        }
+    }
+
+    // Instruction memory
+    // Acts as a ROM.
+    var instruction: logic<32>;
+
+    inst instruction_memory: Memory #(
+
+
+    ) (
+        clk                  ,
+        rst_n                ,
+        address     : pc     ,
+        write_data  : 32'b0  ,
+        write_enable: false  ,
+        byte_enable : 4'b1111,
+
+        read_data: instruction,
+    );
+
+    // Control
+
+    // Intercepts instructions data, generate control signals accordingly
+    // in control unit
+    let op          : logic<7> = instruction[6:0];
+    let f3          : logic<3> = instruction[14:12];
+    let f7          : logic<7> = instruction[31:25];
+    var alu_zero    : logic   ;
+    var alu_last_bit: logic   ;
+
+    // Out of control unit
+    var alu_control      : logic<4>;
+    var imm_source       : logic<3>;
+    var mem_write        : bool    ;
+    var reg_write        : bool    ;
+    var second_add_source: logic<2>;
+
+    // Out muxes wires
+    var alu_source       : logic   ;
+    var write_back_source: logic<2>;
+    var pc_source        : logic   ;
+
+    inst control_unit: Control (
+        op              ,
+        func3       : f3,
+        func7       : f7,
+        alu_zero        ,
+        alu_last_bit    ,
+
+        alu_control  ,
+        imm_source   ,
+        mem_write    ,
+        reg_write    ,
+
+        alu_source         ,
+        write_back_source  ,
+        pc_source          ,
+        second_add_source  ,
+    );
+
+    // Regfile
+    let source_reg1: logic<5>  = instruction[19:15];
+    let source_reg2: logic<5>  = instruction[24:20];
+    let dest_reg   : logic<5>  = instruction[11:7];
+    var read_reg1  : logic<32>;
+    var read_reg2  : logic<32>;
+
+    var wb_valid       : bool     ;
+    var write_back_data: logic<32>;
+
+    // Write back source select
+    always_comb {
+        case write_back_source {
+            2'b00: {
+                       write_back_data = alu_result;
+                       wb_valid        = true;
+                   }
+
+            2'b01: {
+                       write_back_data = mem_read_write_back_data;
+                       wb_valid        = mem_read_write_back_valid;
+                   }
+
+            2'b10: {
+                       write_back_data = pc_plus_four;
+                       wb_valid        = true;
+                   }
+
+            2'b11: {
+                       write_back_data = pc_plus_second_add;
+                       wb_valid        = true;
+                   }
+
+            default: {
+                         wb_valid        = false;
+                         write_back_data = 0;
+                     }
+        }
+    }
+
+    inst regfile: Regfile (
+        clk    ,
+        rst_n  ,
+
+        address1: source_reg1,
+        address2: source_reg2,
+
+        read_data1: read_reg1,
+        read_data2: read_reg2,
+
+        write_enable: reg_write & wb_valid,
+        write_data  : write_back_data     ,
+        address3    : dest_reg            ,
+    );
+
+    // Sign extend
+    let raw_imm  : logic<25> = instruction[31:7];
+    var immediate: logic<32>;
+
+    inst sign_extender: Signext (
+        raw_src   : raw_imm,
+        imm_source         ,
+        immediate          ,
+    );
+
+    // ALU
+    var alu_result: logic<32>;
+    var alu_src2  : logic<32>;
+
+    assign alu_src2 = case alu_source {
+        1'b1   : immediate,
+        default: read_reg2,
+    };
+
+    inst alu: Alu (
+        alu_control              ,
+        src1       : read_reg1   ,
+        src2       : alu_src2    ,
+        alu_result               ,
+        zero       : alu_zero    ,
+        last_bit   : alu_last_bit,
+    );
+
+    // Load/store decoder
+    var mem_byte_enable: logic<4> ;
+    var mem_write_data : logic<32>;
+
+    inst load_store_decoder: LoadStoreDecoder (
+        alu_result_address: alu_result     ,
+        f3                                 ,
+        reg_read          : read_reg2      ,
+        byte_enable       : mem_byte_enable,
+        data              : mem_write_data ,
+    );
+
+    var mem_read_write_back_data : logic<32>;
+    var mem_read_write_back_valid: bool     ;
+
+    inst mem_reader: Reader (
+        mem_data: mem_read                 ,
+        be_mask : mem_byte_enable          ,
+        f3                                 ,
+        wb_data : mem_read_write_back_data ,
+        valid   : mem_read_write_back_valid,
+    );
+
+    // Data memory
+    var mem_read: logic<32>;
+
+    inst data_memory: Memory #(
+
+    ) (
+        clk                                    ,
+        rst_n                                  ,
+        address     : {alu_result[31:2], 2'b00},
+        write_data  : mem_write_data           ,
+        byte_enable : mem_byte_enable          ,
+        write_enable: mem_write                ,
+        read_data   : mem_read                 ,
+    );
+}
+
+#[test(test_cpu, Cpu)]
+include (cocotb, "tb/cpu.py");

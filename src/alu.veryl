@@ -1,0 +1,42 @@
+import types::AluControl;
+
+module Alu (
+    // In
+    alu_control: input logic<4> ,
+    src1       : input logic<32>,
+    src2       : input logic<32>,
+
+    // Out
+    alu_result: output logic<32>,
+    zero      : output bool     ,
+    last_bit  : output logic    ,
+) {
+    let shift_amt: logic<5> = src2[4:0];
+
+    always_comb {
+        case alu_control {
+            AluControl::add: alu_result = src1 + src2;
+            AluControl::and: alu_result = src1 & src2;
+            AluControl::or : alu_result = src1 | src2;
+            AluControl::sub: alu_result = src1 + (~src2 + 1'b1);
+            // Less than compare (src1 < src2) (signed version)
+            AluControl::slt: alu_result = {31'b0, $signed(src1) <: $signed(src2)};
+            // Less than compare (src1 < src2) (unsigned version)
+            AluControl::sltu: alu_result = {31'b0, src1 <: src2};
+            AluControl::xor : alu_result = src1 ^ src2;
+            AluControl::sll : alu_result = src1 << shift_amt;
+            // Shift right Logical
+            AluControl::srl: alu_result = src1 >> shift_amt;
+            // Shift right Arithmetic
+            AluControl::sra: alu_result = $signed(src1) >>> shift_amt;
+            // N/I
+            default: alu_result = 32'b0;
+        }
+    }
+
+    assign zero     = alu_result == 32'b0;
+    assign last_bit = alu_result[0];
+}
+
+#[test(test_alu, Alu)]
+include (cocotb, "tb/alu.py");

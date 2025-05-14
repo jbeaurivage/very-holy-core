@@ -1,0 +1,48 @@
+module Memory #(
+    param words: u32 = 128,
+) (
+    clk         : input clock    ,
+    rst_n       : input reset    ,
+    address     : input logic<32>,
+    write_data  : input logic<32>,
+    byte_enable : input logic<4> ,
+    write_enable: input bool     ,
+
+    read_data: output logic<32>,
+
+) {
+    // Memory array (32-bit words)
+    var mem: logic<32> [words];
+
+    // Write operation
+    always_ff {
+        if_reset {
+            // Do nothing
+        } else {
+            if write_enable {
+                if address[1:0] != 2'b00 {
+                    $display("Misaligned write at address %h", address);
+                } else {
+                    // Use byte-enable to selectively write bytes
+                    for i: u8 in 0..4 {
+                        if byte_enable[i[1:0]] {
+                            /* verilator lint_off WIDTHTRUNC */
+                            mem[address[31:2]][(i * 8)+:8] = write_data[(i * 8)+:8];
+                            /* verilator lint_on WIDTHTRUNC */
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Read operation
+    always_comb {
+        /* verilator lint_off WIDTHTRUNC */
+        read_data = mem[address[31:2]];
+        /* verilator lint_on WIDTHTRUNC */
+    }
+}
+
+#[test(test_memory, Memory)]
+include (cocotb, "tb/memory.py");
