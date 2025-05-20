@@ -1,0 +1,9 @@
+[package]
+name = "very-holy-core"
+authors = ["Justin Beaurivage <code@beaurivage.io>"]
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+marlin = { version = "0.6.2", features = ["verilog"] }
+snafu = "0.8.5"
