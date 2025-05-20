@@ -12,5 +12,3 @@ target = { type = "directory", path = "target/veryl" }
 
 [test]
 waveform_target = { type = "directory", path = "target/waveform" }
-
-[test.verilator]
