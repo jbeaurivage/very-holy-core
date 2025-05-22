@@ -1,0 +1,2 @@
+#[test(test_cpu, Cpu)]
+include (cocotb, "../../tb/cpu.py");

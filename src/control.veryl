@@ -286,6 +286,3 @@ module Control (
 
     assign pc_source = assert_branch | jump;
 }
-
-#[test(test_control, Control)]
-include (cocotb, "../tb/control.py");

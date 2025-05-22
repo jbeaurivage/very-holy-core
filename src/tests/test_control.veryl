@@ -1,0 +1,2 @@
+#[test(test_control, Control)]
+include (cocotb, "../../tb/control.py");

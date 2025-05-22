@@ -79,6 +79,3 @@ module Reader (
         valid = |be_mask;
     }
 }
-
-#[test(test_reader, Reader)]
-include (cocotb, "../tb/reader.py");

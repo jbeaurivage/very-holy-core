@@ -42,6 +42,3 @@ module Memory #(
         read_data  ,
     );
 }
-
-#[test(test_memory, Memory)]
-include (cocotb, "../tb/memory.py");

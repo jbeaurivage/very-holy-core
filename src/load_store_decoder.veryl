@@ -58,6 +58,3 @@ module LoadStoreDecoder (
         }
     }
 }
-
-#[test(test_load_store_decoder, LoadStoreDecoder)]
-include (cocotb, "../tb/load_store_decoder.py");

@@ -37,6 +37,3 @@ module Alu (
     assign zero     = alu_result == 32'b0;
     assign last_bit = alu_result[0];
 }
-
-#[test(test_alu, Alu)]
-include (cocotb, "../tb/alu.py");

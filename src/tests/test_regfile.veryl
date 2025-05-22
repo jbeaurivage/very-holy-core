@@ -1,0 +1,2 @@
+#[test(test_regfile, Regfile)]
+include (cocotb, "../../tb/regfile.py");

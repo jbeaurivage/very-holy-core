@@ -1,0 +1,2 @@
+#[test(test_memory, MemoryController)]
+include (cocotb, "../../tb/memory.py");

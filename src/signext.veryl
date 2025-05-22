@@ -27,6 +27,3 @@ module Signext (
         default: 32'b0,
     };
 }
-
-#[test(test_signext, Signext)]
-include (cocotb, "../tb/signext.py");

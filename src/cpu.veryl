@@ -209,6 +209,3 @@ module Cpu (
         read_data   : mem_read                 ,
     );
 }
-
-#[test(test_cpu, Cpu)]
-include (cocotb, "../tb/cpu.py");
