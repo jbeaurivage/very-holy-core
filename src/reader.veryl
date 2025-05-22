@@ -81,4 +81,4 @@ module Reader (
 }
 
 #[test(test_reader, Reader)]
-include (cocotb, "tb/reader.py");
+include (cocotb, "../tb/reader.py");

@@ -29,4 +29,4 @@ module Signext (
 }
 
 #[test(test_signext, Signext)]
-include (cocotb, "tb/signext.py");
+include (cocotb, "../tb/signext.py");

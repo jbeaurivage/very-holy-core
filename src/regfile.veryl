@@ -37,4 +37,4 @@ module Regfile (
 }
 
 #[test(test_regfile, Regfile)]
-include (cocotb, "tb/regfile.py");
+include (cocotb, "../tb/regfile.py");

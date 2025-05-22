@@ -39,4 +39,4 @@ module Alu (
 }
 
 #[test(test_alu, Alu)]
-include (cocotb, "tb/alu.py");
+include (cocotb, "../tb/alu.py");

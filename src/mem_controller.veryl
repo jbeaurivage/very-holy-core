@@ -24,15 +24,15 @@ module Memory #(
     let aligned_address: logic<30> = (address >> 2);
     /* verilator lint_on WIDTHTRUNC */
     // Inhibit misaligned requests
-    let allow          : bool      = enable && address[1:0] == 0;
+    let allow: bool = enable && address[1:0] == 0;
 
     inst ram: sp_bram #(
         INIT_FILE: mem_init,
         RAM_DEPTH          ,
     ) (
-        clk    ,
-        rst_n  ,
-        enable: allow  ,
+        clk          ,
+        rst_n        ,
+        enable: allow,
         /* verilator lint_off WIDTHTRUNC */
         address: aligned_address,
         /* verilator lint_on WIDTHTRUNC */
@@ -44,4 +44,4 @@ module Memory #(
 }
 
 #[test(test_memory, Memory)]
-include (cocotb, "tb/memory.py");
+include (cocotb, "../tb/memory.py");

@@ -130,4 +130,3 @@ async def memory_data_test(dut):
             # Check that we're only touching the concerned bytes
             assert dut.read_data.value & mask == data & mask
             assert dut.read_data.value & ~mask == dut.ram.mem.value[int(address/4)] & ~mask
-            
