@@ -1,47 +1,46 @@
+/// Memory instantaniating a Block RAM
+/// Byte addressed, but only supports
+/// word-aligned reads and writes.
+/// Misaligned requests will be silently ignored
 module Memory #(
-    param words: u32 = 128,
+    param mem_init: string = "",
+    /// Number of words
+    param RAM_DEPTH: u32 = 1024,
 ) (
-    clk         : input clock    ,
-    rst_n       : input reset    ,
-    address     : input logic<32>,
-    write_data  : input logic<32>,
-    byte_enable : input logic<4> ,
-    write_enable: input bool     ,
+    clk  : input clock,
+    rst_n: input reset,
+    /// Port enable
+    enable: input bool,
+    /// Memory is word-addressed. Use byte_enable to write individual bytes
+    address   : input logic<32>,
+    write_data: input logic<32>,
+    /// Byte enable mask, for writing individual bytes from a word
+    byte_write_enable: input logic<4>,
 
     read_data: output logic<32>,
-
 ) {
-    // Memory array (32-bit words)
-    var mem: logic<32> [words];
+    // Take the word-aligned part of the address
+    /* verilator lint_off WIDTHTRUNC */
+    let aligned_address: logic<30> = (address >> 2);
+    /* verilator lint_on WIDTHTRUNC */
+    // Inhibit misaligned requests
+    let allow          : bool      = enable && address[1:0] == 0;
 
-    // Write operation
-    always_ff {
-        if_reset {
-            // Do nothing
-        } else {
-            if write_enable {
-                if address[1:0] != 2'b00 {
-                    $display("Misaligned write at address %h", address);
-                } else {
-                    // Use byte-enable to selectively write bytes
-                    for i: u8 in 0..4 {
-                        if byte_enable[i[1:0]] {
-                            /* verilator lint_off WIDTHTRUNC */
-                            mem[address[31:2]][(i * 8)+:8] = write_data[(i * 8)+:8];
-                            /* verilator lint_on WIDTHTRUNC */
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Read operation
-    always_comb {
+    inst ram: sp_bram #(
+        INIT_FILE: mem_init,
+        RAM_DEPTH          ,
+    ) (
+        clk    ,
+        rst_n  ,
+        enable: allow  ,
         /* verilator lint_off WIDTHTRUNC */
-        read_data = mem[address[31:2]];
+        address: aligned_address,
         /* verilator lint_on WIDTHTRUNC */
-    }
+        write_data         ,
+        byte_write_enable  ,
+
+        read_data  ,
+    );
 }
 
 #[test(test_memory, Memory)]
