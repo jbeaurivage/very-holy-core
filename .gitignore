@@ -10,6 +10,9 @@ temp.py
 **/.pytest_cache
 
 vivado/
+*.jou
+*.log
+test_projects/
 
 dependencies/
 .build/
