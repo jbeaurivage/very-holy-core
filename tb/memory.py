@@ -16,18 +16,18 @@ async def reset(dut):
     # We do it manually for testing purposes
     dut.ram.mem.value = [0] * len(dut.ram.mem.value)
     await RisingEdge(dut.clk)
-    dut.enable.value = 0
     dut.byte_write_enable.value = 0
     dut.address.value = 0
     dut.write_data.value = 0
     await RisingEdge(dut.clk)
 
     dut.rst_n.value = 1
-    # Enable the memory
-    dut.enable.value = 1
     await RisingEdge(dut.clk)
 
     print("reset done !")
+
+def assert_read(dut, address, expected):
+    assert dut.read_data.value == expected, f"Error at address {address}: expected {hex(expected)}, got {hex(dut.read_data.value)}"
 
 
 @cocotb.test()
@@ -60,9 +60,8 @@ async def memory_data_test(dut):
         await RisingEdge(dut.clk)
 
         # Verify by reading back
-        dut.address.value = address
         await RisingEdge(dut.clk)
-        assert dut.read_data.value == data, f"Error at address {address}: expected {hex(data)}, got {hex(dut.read_data.value)}"
+        assert_read(dut, address, data)
 
     # ==============
     # WRITE TEST #2
@@ -83,7 +82,7 @@ async def memory_data_test(dut):
 
         # Read back a second time for fun
         await RisingEdge(dut.clk)
-        assert dut.read_data.value == i
+        assert_read(dut, i, i)
 
     # ==============
     # NO WRITE TEST
@@ -97,8 +96,7 @@ async def memory_data_test(dut):
 
         # Verify by reading back
         await RisingEdge(dut.clk)
-        expected_value = i
-        assert dut.read_data.value == expected_value, f"Expected {expected_value}, got {dut.read_data.value} at address {i}"
+        assert_read(dut, i, i)
 
     # ===============
     # BYTE WRITE TEST

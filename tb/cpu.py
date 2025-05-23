@@ -104,12 +104,44 @@ FFD39A03  //LH TEST START :     lh x20 -3(x7)       | NO WRITE IN REGISTER !
 FFA39A03  //                    lh x20 -6(x7)       | x20 <= FFFFDEAD
 FFD3DA83  //LHU TEST START :    lhu x21 -3(x7)      | NO WRITE IN REGISTER !
 FFA3DA83  //                    lhu x21 -6(x7)      | x21 <= 0000DEAD
+10000193  // READ-WRITE TEST:   addi x3, x0, 256    | x3 <= 256
+00302423  //                    sw x3, 0x8(x0)      | 0x8 <= 256
+00802203  //                    lw x4, 0x8(x0)      | x4 <= 256
 00000013  //NOP
 00000013  //NOP
 00000013  //NOP
 00000013  //NOP
 00000013  //NOP
 // ..."""
+
+class WriteBack:
+    def __init__(self, packed):
+        self.data = packed & 0xFFFFFFFF
+        self.dest_reg = (packed >> 32) & 0b11111
+        self.byte_enable_mask = (packed >> 32+5) & 0b1111
+        self.f3 = (packed >> 32+9) & 0b111
+        self.reg_write = (packed >> (32+12)) & 1
+        self.is_mem_read = (packed >> (32+13)) & 1
+    
+    def __str__(self):
+        return f"WriteBack: data: 0x{self.data:08x}, dest_reg: {self.dest_reg}, reg_write: {self.reg_write}, be_mask: 0b{self.byte_enable_mask:04b}, is_mem_read: {self.is_mem_read}"
+
+    def assert_wb(self, dest_reg, expected):
+        assert self.data == expected, f'Expected 0x{expected:08x}, got 0x{self.data:08x} at register {self.dest_reg}'
+        assert self.dest_reg == dest_reg, f'Expected destination register {dest_reg}, got {self.dest_reg}'
+
+def assert_wb(wb_val, dest_reg, expected):
+    WriteBack(wb_val.value).assert_wb(dest_reg, expected)
+
+def assert_reg(dut, reg, expected):
+    reg_value = dut.regfile.registers[reg].value
+    assert expected == reg_value, f'Expected {expected:8x} at register {reg}, got {binary_to_hex(reg_value)}'
+
+def assert_dmem(dut, address, expected):
+    # mem is byte adressed but is made out of words in the eyes of the software
+    mem_value = dut.data_memory.ram.mem[int(address/4)].value
+    assert expected == mem_value, f'Expected {expected:8x} at address {address}, got {binary_to_hex(mem_value)}'
+
 
 def binary_to_hex(bin_str):
     # Convert binary string to hexadecimal
@@ -154,9 +186,21 @@ async def cpu_insert_test(dut):
     await RisingEdge(dut.clk)
 
     # Just like in real HW, memory isn't reset to 0 when the system is reset.
-    await init_memory(dut.instruction_memory.mem, IMEM)
-    await init_memory(dut.data_memory.mem, DMEM)
+    await init_memory(dut.instruction_memory.ram.mem, IMEM)
+    await init_memory(dut.data_memory.ram.mem, DMEM)
     await cpu_reset(dut)
+
+    # Wait one cycle to allow the instruction fetch to propagate
+    await RisingEdge(dut.clk)
+
+    assert binary_to_hex(dut.pc.value) == "00000000"
+    assert binary_to_hex(dut.instruction.value) == "00802903"
+    # Check that the instruction mem loaded correctly
+    assert binary_to_hex(dut.instruction_memory.ram.mem[0].value) == "00802903"
+    # Check that the data mem loaded correctly
+    assert_dmem(dut, 0, 0xAEAEAEAE)
+    assert_dmem(dut, 8, 0xDEADBEEF)
+
 
     ##################
     # LOAD WORD TEST 
@@ -166,37 +210,37 @@ async def cpu_insert_test(dut):
 
     # The first instruction for the test in imem.hex load the data from
     # dmem @ adress 0x00000008 that happens to be 0xDEADBEEF into register x18
-
-    # Wait a clock cycle for the instruction to execute
+ 
+    # Let instruction execute
     await RisingEdge(dut.clk)
 
-    # Check that the instruction mem loaded correctly
-    assert binary_to_hex(dut.pc.value) == "00000004"
-    assert binary_to_hex(dut.instruction_memory.mem[0].value) == "00802903"
-
-    # Check that the data mem loaded correctly
-    assert binary_to_hex(dut.data_memory.mem[0].value) == "AEAEAEAE"
-    assert binary_to_hex(dut.data_memory.mem[2].value) == "DEADBEEF"
-
-    # Check the value of reg x18
-    assert binary_to_hex(dut.regfile.registers[18].value) == "DEADBEEF"
+    # The result will propagate to x18 in the next cycle.
 
     ##################
     # STORE WORD TEST 
     # sw x18 0xC(x0)
     ##################
     print("\n\nTESTING SW\n\n")
-    test_address = int(0xC / 4) # mem is byte adressed but is made out of words in the eyes of the software
+    test_address = 0xC
     # The second instruction for the test in imem.hex stores the data from
     # x18 (that happens to be 0xDEADBEEF from the previous LW test) @ adress 0x0000000C 
 
     # First, let's check the inital value
-    assert binary_to_hex(dut.data_memory.mem[test_address].value) == "F2F2F2F2"
+    assert_dmem(dut, test_address, 0xF2F2F2F2)
+    # Make sure we're still synchronized
+    assert dut.pc.value == 0x4
+    assert dut.instruction.value == 0x01202623
+    # Check that we're using the right operand, which has just been loaded from memory
+    # (but is not yet written to the regfile)
+   
+    assert dut.data_memory.write_data == 0xDEADBEEF
 
-    # Wait a clock cycle for the instruction to execute
+    # Execute sw x18 0xC(x0)
     await RisingEdge(dut.clk)
-    # Check the value of mem[0xC]
-    assert binary_to_hex(dut.data_memory.mem[test_address].value) == "DEADBEEF"
+    # Check the value of x18, which was written by lw op from the last cycle
+    assert_reg(dut, 18, 0xDEADBEEF)
+    # The value of mem[0xC] will propagate to memory in the next cycle
+    # assert binary_to_hex(dut.data_memory.ram.mem[test_address].value) == "DEADBEEF"
 
     ##################
     # ADD TEST
@@ -206,10 +250,25 @@ async def cpu_insert_test(dut):
 
     # Expected result of x18 + x19
     expected_result = (0xDEADBEEF + 0x00000AAA) & 0xFFFFFFFF
-    await RisingEdge(dut.clk) # lw x19 0x10(x0)
-    assert binary_to_hex(dut.regfile.registers[19].value) == "00000AAA"
-    await RisingEdge(dut.clk) # add x20 x18 x19
-    assert binary_to_hex(dut.regfile.registers[20].value) == hex(expected_result)[2:].upper()
+    assert dut.data_memory.ram.mem[int(0x10 / 4)] == 0x00000AAA
+
+    assert WriteBack(dut.next_writeback.value).dest_reg == 19
+
+    # Execute lw x19 0x10(x0)
+    await RisingEdge(dut.clk)
+
+    # Check the value of mem[0xC], which was written by sw op from the last cycle
+    assert_dmem(dut, test_address, 0xDEADBEEF)
+    
+    # The read result will propagate to x19 in the next cycle.
+    assert WriteBack(dut.writeback.value).dest_reg == 19
+    assert dut.writeback_data.value == 0x00000AAA
+    
+    # Execute add x20 x18 x19
+    await RisingEdge(dut.clk)
+
+    # Result of lw x19 0x10(x0) has just propagated to register
+    assert_reg(dut, 19, 0x00000AAA)
 
     ##################
     # AND TEST
@@ -218,8 +277,10 @@ async def cpu_insert_test(dut):
 
     # Use last expected result, as this instr uses last op result register
     expected_result = expected_result & 0xDEADBEEF
-    await RisingEdge(dut.clk) # and x21 x18 x20
-    assert binary_to_hex(dut.regfile.registers[21].value) == "DEAD8889"
+    assert_wb(dut.next_writeback.value, 21, 0xDEAD8889)
+
+    # Execute and x21 x18 x20
+    await RisingEdge(dut.clk)
 
     ##################
     # OR TEST
@@ -229,13 +290,21 @@ async def cpu_insert_test(dut):
     ##################
     print("\n\nTESTING OR\n\n")
 
-    await RisingEdge(dut.clk) # lw x5 0x14(x0) | x5  <- 125F552D
-    assert binary_to_hex(dut.regfile.registers[5].value) == "125F552D"
-    await RisingEdge(dut.clk) # lw x6 0x18(x0) | x6  <- 7F4FD46A
-    assert binary_to_hex(dut.regfile.registers[6].value) == "7F4FD46A"
-    await RisingEdge(dut.clk) # or x7 x5 x6    | x7  <- 7F5FD56F
-    assert binary_to_hex(dut.regfile.registers[7].value) == "7F5FD56F"
+    # Execute # lw x5 0x14(x0) | x5  <- 125F552D
+    await RisingEdge(dut.clk) 
 
+	# Result propagates to regfile from and x21 x18 x20
+    assert_reg(dut, 21, 0xDEAD8889)
+
+    # Execute lw x6 0x18(x0) | x6  <- 7F4FD46A
+    await RisingEdge(dut.clk)
+    assert_wb(dut.next_writeback, 7, 0x7F5FD56F)
+
+    # Execute or x7 x5 x6    | x7  <- 7F5FD56F
+    await RisingEdge(dut.clk) 
+    # Read from lw x5 0x14(x0) propagates to regfile
+    assert_reg(dut, 5, 0x125F552D)
+    
     ##################
     # BEQ TEST
     # 00730663  //BEQ TEST START :    beq x6 x7 0xC       | #1 SHOULD NOT BRANCH
@@ -256,17 +325,30 @@ async def cpu_insert_test(dut):
     # Check if the current instruction is the one we expected
     assert binary_to_hex(dut.instruction.value) == "00802B03"
 
-    await RisingEdge(dut.clk) # lw x22 0x8(x0)
-    assert binary_to_hex(dut.regfile.registers[22].value) == "DEADBEEF"
+    # Execute lw x22 0x8(x0)
+    await RisingEdge(dut.clk)
 
-    await RisingEdge(dut.clk) # beq x18 x22 0x10 TAKEN
+    # The read result will propagate to x22 in the next cycle.
+    assert WriteBack(dut.writeback.value).dest_reg == 22
+    assert dut.writeback_data.value == 0xDEADBEEF
+
+    # Execute beq x18 x22 0x10 TAKEN
+    await RisingEdge(dut.clk)
+
     # Check if the current instruction is the one we expected
     assert binary_to_hex(dut.instruction.value) == "00002B03"
+    # Check that lw x22 0x8(x0) has propagated to the regfile
+    assert_reg(dut, 22, 0xDEADBEEF)
 
-    await RisingEdge(dut.clk) # lw x22 0x0(x0)
-    assert binary_to_hex(dut.regfile.registers[22].value) == "AEAEAEAE"
+    # Execute lw x22 0x0(x0)
+    await RisingEdge(dut.clk)
 
-    await RisingEdge(dut.clk) # beq x22 x22 -0x8 TAKEN
+    assert WriteBack(dut.writeback.value).dest_reg == 22
+    assert dut.writeback_data.value == 0xAEAEAEAE
+
+    # Execute beq x22 x22 -0x8 TAKEN
+    await RisingEdge(dut.clk) 
+
     # Check if the current instruction is the one we expected
     assert binary_to_hex(dut.instruction.value) == "00000663"
 
@@ -291,26 +373,36 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "00C000EF"
     assert binary_to_hex(dut.pc.value) == "00000044"
 
-    await RisingEdge(dut.clk) # jal x1 0xC
+
+    # Execute jal x1 0xC
+    await RisingEdge(dut.clk)
+    assert_wb(dut.writeback, 1, 0x00000048) # stored old pc + 4
     # Check new state & ra (x1) register value
     assert binary_to_hex(dut.instruction.value) == "FFDFF0EF"
     assert binary_to_hex(dut.pc.value) == "00000050"
-    assert binary_to_hex(dut.regfile.registers[1].value) == "00000048" # stored old pc + 4
 
-    await RisingEdge(dut.clk) # jal x1 -4
+
+    # Execute jal x1 -4
+    await RisingEdge(dut.clk) 
+    assert_wb(dut.writeback, 1, 0x00000054) # stored old pc + 4
     # Check new state & ra (x1) register value
     assert binary_to_hex(dut.instruction.value) == "00C000EF"
     assert binary_to_hex(dut.pc.value) == "0000004C"
-    assert binary_to_hex(dut.regfile.registers[1].value) == "00000054" # stored old pc + 4
 
-    await RisingEdge(dut.clk) # jal x1 0xC
+
+    # Execute jal x1 0xC
+    await RisingEdge(dut.clk) 
+
+    assert_wb(dut.writeback, 1, 0x00000050) # stored old pc + 4
     # Check new state & ra (x1) register value
     assert binary_to_hex(dut.instruction.value) == "00C02383"
     assert binary_to_hex(dut.pc.value) == "00000058"
-    assert binary_to_hex(dut.regfile.registers[1].value) == "00000050" # stored old pc + 4
 
-    await RisingEdge(dut.clk) # lw x7 0xC(x0)
-    assert binary_to_hex(dut.regfile.registers[7].value) == "DEADBEEF"
+    # Execute lw x7 0xC(x0)
+    await RisingEdge(dut.clk) 
+
+    assert WriteBack(dut.writeback.value).dest_reg == 7
+    assert dut.writeback_data.value == 0xDEADBEEF
 
     ##################
     # ADDI TEST
@@ -324,11 +416,15 @@ async def cpu_insert_test(dut):
     assert not binary_to_hex(dut.regfile.registers[26].value) == "DEADC09A"
 
     await RisingEdge(dut.clk) # addi x26 x7 0x1AB
+
+    # Check that the previous lw was stored in the regfile
+    assert_reg(dut, 7, 0xDEADBEEF)
+
     assert binary_to_hex(dut.instruction.value) == "F2130C93"
-    assert binary_to_hex(dut.regfile.registers[26].value) == "DEADC09A"
+    assert_wb(dut.writeback, 26, 0xDEADC09A)
 
     await RisingEdge(dut.clk) # addi x25 x6 0xF21
-    assert binary_to_hex(dut.regfile.registers[25].value) == "7F4FD38B"
+    assert_wb(dut.writeback, 25, 0x7F4FD38B)
 
     ##################
     # AUIPC TEST (PC befor is 0x64)
@@ -340,7 +436,7 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "1F1FA297"
 
     await RisingEdge(dut.clk) # auipc x5 0x1F1FA
-    assert binary_to_hex(dut.regfile.registers[5].value) == "1F1FA064"
+    assert_wb(dut.writeback, 5, 0x1F1FA064)
 
     ##################
     # LUI TEST
@@ -352,7 +448,7 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "2F2FA2B7"
 
     await RisingEdge(dut.clk) # lui x5 0x2F2FA 
-    assert binary_to_hex(dut.regfile.registers[5].value) == "2F2FA000"
+    assert_wb(dut.writeback, 5, 0x2F2FA000)
 
     ##################
     # FFF9AB93  //SLTI TEST START :   slti x23 x19 0xFFF  | x23 <= 00000000
@@ -361,16 +457,22 @@ async def cpu_insert_test(dut):
     print("\n\nTESTING SLTI\n\n")
 
     # Check test's init state
-    assert binary_to_hex(dut.regfile.registers[19].value) == "00000AAA"
+    assert_reg(dut, 19, 0x00000AAA)
     assert binary_to_hex(dut.instruction.value) == "FFF9AB93"
 
     await RisingEdge(dut.clk) # slti x23 x19 0xFFF
-    assert binary_to_hex(dut.regfile.registers[23].value) == "00000000"
+
+    # Check that the previous op was written to registers
+    assert_reg(dut, 5, 0x2F2FA000)
+
+    # Check test's init state
+    assert_reg(dut, 23, 0x00000000)
 
     await RisingEdge(dut.clk) # slti x23 x23 0x001
-    assert binary_to_hex(dut.regfile.registers[23].value) == "00000001"
 
-     ##################
+    assert_wb(dut.writeback, 23, 0x00000001)
+
+    ##################
     # FFF9BB13  //SLTIU TEST START :  sltiu x22 x19 0xFFF | x22 <= 00000001
     # 0019BB13  //                    sltiu x22 x19 0x001 | x22 <= 00000000
     ##################
@@ -380,10 +482,10 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "FFF9BB13"
 
     await RisingEdge(dut.clk) # sltiu x22 x19 0xFFF
-    assert binary_to_hex(dut.regfile.registers[22].value) == "00000001"
+    assert_wb(dut.writeback, 22, 0x00000001)
 
     await RisingEdge(dut.clk) # sltiu x22 x19 0x001 
-    assert binary_to_hex(dut.regfile.registers[22].value) == "00000000"
+    assert_wb(dut.writeback, 22, 0x00000000)
 
     ##################
     # AAA94913  //XORI TEST START :   xori x18 x18 0xAAA  | x18 <= 21524445 (because sign ext)
@@ -395,13 +497,10 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "AAA94913"
 
     await RisingEdge(dut.clk) # xori x18 x19 0xAAA 
-    assert binary_to_hex(dut.regfile.registers[18].value) == "21524445"
+    assert_wb(dut.writeback, 18, 0x21524445)
 
-    await RisingEdge(dut.clk) # xori x19 x18 0x000    
-    assert (
-        binary_to_hex(dut.regfile.registers[19].value) ==
-        binary_to_hex(dut.regfile.registers[18].value)
-    )
+    await RisingEdge(dut.clk) # xori x19 x18 0x000
+    assert_wb(dut.writeback, 19, dut.regfile.registers[18].value)
 
     ##################
     # AAA9EA13  //ORI TEST START :    ori x20 x19 0xAAA   | x20 <= FFFFFEEF
@@ -413,10 +512,10 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "AAA9EA13"
 
     await RisingEdge(dut.clk) # ori x20 x19 0xAAA 
-    assert binary_to_hex(dut.regfile.registers[20].value) == "FFFFFEEF"
+    assert_wb(dut.writeback, 20, 0xFFFFFEEF)
 
     await RisingEdge(dut.clk) # ori x21 x20 0x000
-    assert binary_to_hex(dut.regfile.registers[21].value) == binary_to_hex(dut.regfile.registers[20].value)
+    assert_wb(dut.writeback, 21, dut.regfile.registers[20].value)
 
     ##################
     # 7FFA7913  //ANDI TEST START :   andi x18 x20 0x7FF  | x18 <= 000006EF
@@ -429,14 +528,16 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "7FFA7913"
 
     await RisingEdge(dut.clk) # andi x18 x20 0x7FF 
-    assert binary_to_hex(dut.regfile.registers[18].value) == "000006EF"
+    assert_wb(dut.writeback, 18, 0x000006EF)
 
     await RisingEdge(dut.clk) # andi x19 x21 0xFFF
-    assert binary_to_hex(dut.regfile.registers[19].value) == binary_to_hex(dut.regfile.registers[21].value)
-    assert binary_to_hex(dut.regfile.registers[19].value) == "FFFFFEEF"
+    # Check that the result has propagated to regfile from previous instr
+    assert_reg(dut, 18, 0x000006EF)
+    assert_wb(dut.writeback, 19, dut.regfile.registers[21].value)
+    assert_wb(dut.writeback, 19, 0xFFFFFEEF)
 
     await RisingEdge(dut.clk) # andi x20 x21 0x000 
-    assert binary_to_hex(dut.regfile.registers[20].value) == "00000000"
+    assert_wb(dut.writeback, 20, 0x00000000)
 
     ##################
     # 00499993  //SLLI TEST START :   slli x19 x19 0x4    | x19 <= FFFFEEF0
@@ -448,12 +549,16 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "00499993"
 
     await RisingEdge(dut.clk) # slli x19 x19 0x4
-    assert binary_to_hex(dut.regfile.registers[19].value) == "FFFFEEF0"
+    assert_wb(dut.writeback, 19, 0xFFFFEEF0)
 
     # the op is invalid ! reg_write should be 0 in order not to alter CPU state
-    assert dut.reg_write.value == "0" 
+    assert dut.reg_write.value == 0
     await RisingEdge(dut.clk) # invalid op test
-    assert binary_to_hex(dut.regfile.registers[19].value) == "FFFFEEF0"
+
+    wb = WriteBack(dut.writeback.value)
+    assert not dut.writeback_enable.value
+    assert dut.mem_write.value == 0
+    assert_reg(dut, 19, 0xFFFFEEF0)
 
     ##################
     # 0049DA13  //SRLI TEST START :   srli x20 x19 0x4    | x20 <= 0FFFFEEF
@@ -465,12 +570,18 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "0049DA13"
 
     await RisingEdge(dut.clk) # srli x20 x19 0x4
-    assert binary_to_hex(dut.regfile.registers[20].value) == "0FFFFEEF"
+    # Check that previous op didn't affect register state
+    assert_reg(dut, 19, 0xFFFFEEF0)
+    assert_wb(dut.writeback, 20, 0x0FFFFEEF)
 
     # the op is invalid ! reg_write should be 0 in order not to alter CPU state
-    assert dut.reg_write.value == "0" 
+    assert dut.reg_write.value == 0
     await RisingEdge(dut.clk) # invalid op test
-    assert binary_to_hex(dut.regfile.registers[20].value) == "0FFFFEEF"
+
+    wb = WriteBack(dut.writeback.value)
+    assert not dut.writeback_enable.value
+    assert dut.mem_write.value == 0
+    assert_reg(dut, 20, 0x0FFFFEEF)
 
     ##################
     # 404ADA93  //SRAI TEST START :   srai x21 x21 0x4    | x21 <= FFFFFFEE
@@ -482,12 +593,16 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "404ADA93"
 
     await RisingEdge(dut.clk) # srai x21 x21 0x4
-    assert binary_to_hex(dut.regfile.registers[21].value) == "FFFFFFEE"
+    assert_wb(dut.writeback, 21, 0xFFFFFFEE)
 
     # the op is invalid ! reg_write should be 0 in order not to alter CPU state
-    assert dut.reg_write.value == "0" 
+    assert dut.reg_write.value == 0
     await RisingEdge(dut.clk) # invalid op test
-    assert binary_to_hex(dut.regfile.registers[21].value) == "FFFFFFEE"
+
+    wb = WriteBack(dut.writeback.value)
+    assert not dut.writeback_enable.value
+    assert dut.mem_write.value == 0
+    assert_reg(dut, 21, 0xFFFFFFEE)
 
     ##################
     # 412A8933  //SUB TEST START :    sub x18 x21 x18     | x18 <= FFFFF8FF
@@ -498,7 +613,7 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "412A8933"
 
     await RisingEdge(dut.clk) # sub x18 x21 x18
-    assert binary_to_hex(dut.regfile.registers[18].value) == "FFFFF8FF"
+    assert_wb(dut.writeback, 18, 0xFFFFF8FF)
 
      ##################
     # 00800393  //SLL TEST START :    addi x7 x0 0x8      | x7  <= 00000008
@@ -509,10 +624,10 @@ async def cpu_insert_test(dut):
     # Check test's init state
     assert binary_to_hex(dut.instruction.value) == "00800393"
     await RisingEdge(dut.clk) # addi x7 x0 0x8
-    assert binary_to_hex(dut.regfile.registers[7].value) == "00000008"
+    assert_wb(dut.writeback, 7, 0x00000008)
 
     await RisingEdge(dut.clk) # sll x18 x18 x7
-    assert binary_to_hex(dut.regfile.registers[18].value) == "FFF8FF00"
+    assert_wb(dut.writeback, 18, 0xFFF8FF00)
     
     ##################
     # 013928B3  //SLT TEST START :    slt x17 x22 x23     | x17 <= 00000001 (-459008 < -4368)
@@ -523,7 +638,7 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "013928B3"
 
     await RisingEdge(dut.clk) # slt x17 x22 x23
-    assert binary_to_hex(dut.regfile.registers[17].value) == "00000001"
+    assert_wb(dut.writeback, 17, 0x00000001)
     
     ##################
     # 013938B3  //SLTU TEST START :   sltu x17 x22 x23    | x17 <= 00000001
@@ -534,7 +649,7 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "013938B3"
 
     await RisingEdge(dut.clk) # sltu x17 x22 x23
-    assert binary_to_hex(dut.regfile.registers[17].value) == "00000001"
+    assert_wb(dut.writeback, 17, 0x00000001)
     
     ##################
     # 013948B3  //XOR TEST START :    xor x17 x18 x19     | x17 <= 000711F0
@@ -545,7 +660,7 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "013948B3"
 
     await RisingEdge(dut.clk) # xor x17 x18 x19
-    assert binary_to_hex(dut.regfile.registers[17].value) == "000711F0"
+    assert_wb(dut.writeback, 17, 0x000711F0)
 
     ##################
     # 0079D433  //SRL TEST START :    srl x8 x19 x7       | x8  <= 00FFFFEE
@@ -556,7 +671,7 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "0079D433"
 
     await RisingEdge(dut.clk) # srl x8 x19 x7
-    assert binary_to_hex(dut.regfile.registers[8].value) == "00FFFFEE"
+    assert_wb(dut.writeback, 8, 0x00FFFFEE)
 
     ##################
     # 4079D433  //SRA TEST START :    sra x8 x19 x7       | x8  <= FFFFFFEE
@@ -567,7 +682,7 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "4079D433"
 
     await RisingEdge(dut.clk) # sra x8 x19 x7 
-    assert binary_to_hex(dut.regfile.registers[8].value) == "FFFFFFEE"
+    assert_wb(dut.writeback, 8, 0xFFFFFFEE)
 
     ##################
     # 0088C463  //BLT TEST START :    blt x17 x8 0x8      | not taken : x8 neg (sign), x17 pos (no sign)
@@ -579,17 +694,19 @@ async def cpu_insert_test(dut):
     # Check test's init state
     assert binary_to_hex(dut.instruction.value) == "0088C463"
     assert binary_to_hex(dut.regfile.registers[17].value) == "000711F0"
-    assert binary_to_hex(dut.regfile.registers[8].value) == "FFFFFFEE"
 
     # execute, branch should NOT be taken !
     await RisingEdge(dut.clk) # blt x17 x8 0x8
+    assert_reg(dut, 8, 0xFFFFFFEE)
     assert binary_to_hex(dut.instruction.value) == "01144463"
 
     # execute, branch SHOULD be taken !
     await RisingEdge(dut.clk) # blt x8 x17 0x8
     assert not binary_to_hex(dut.instruction.value) == "00C00413"
     # We verify x8 value was not altered by addi instruction, because it was never meant tyo be executed (sad)
-    assert binary_to_hex(dut.regfile.registers[8].value) == "FFFFFFEE"
+    wb = WriteBack(dut.writeback.value)
+    assert not dut.writeback_enable.value
+    assert_reg(dut, 8, 0xFFFFFFEE)
 
     ##################
     # 00841463  //BNE TEST START :    bne x8 x8 0x8       | not taken
@@ -603,13 +720,17 @@ async def cpu_insert_test(dut):
 
     # execute, branch should NOT be taken !
     await RisingEdge(dut.clk) # bne x8 x8 0x8
+
+    # We check that the previous instruction hasn't altered the regfile
+    assert_reg(dut, 8, 0xFFFFFFEE)
+
     assert binary_to_hex(dut.instruction.value) == "01141463"
 
     # execute, branch SHOULD be taken !
     await RisingEdge(dut.clk) # bne x8 x17 0x8
     assert not binary_to_hex(dut.instruction.value) == "00C00413"
     # We verify x8 value was not altered by addi instruction, because it was never meant tyo be executed (sad)
-    assert binary_to_hex(dut.regfile.registers[8].value) == "FFFFFFEE"
+    assert_reg(dut, 8, 0xFFFFFFEE)
 
     ##################
     # 01145463  //BGE TEST START :    bge x8 x17 0x8      | not taken
@@ -623,13 +744,17 @@ async def cpu_insert_test(dut):
 
     # execute, branch should NOT be taken !
     await RisingEdge(dut.clk) # bge x8 x17 0x8 
+
+    # We check that the previous instruction hasn't altered the regfile
+    assert_reg(dut, 8, 0xFFFFFFEE)
+
     assert binary_to_hex(dut.instruction.value) == "00845463"
 
     # execute, branch SHOULD be taken !
     await RisingEdge(dut.clk) # bge x8 x8 0x8 
     assert not binary_to_hex(dut.instruction.value) == "00C00413"
     # We verify x8 value was not altered by addi instruction, because it was never meant tyo be executed (sad)
-    assert binary_to_hex(dut.regfile.registers[8].value) == "FFFFFFEE"
+    assert_reg(dut, 8, 0xFFFFFFEE)
 
     ##################
     # 01146463  //BLTU TEST START :   bltu x8 x17 0x8     | not taken
@@ -643,13 +768,17 @@ async def cpu_insert_test(dut):
 
     # execute, branch should NOT be taken !
     await RisingEdge(dut.clk) # bltu x8 x17 0x8
+
+    # We check that the previous instruction hasn't altered the regfile
+    assert_reg(dut, 8, 0xFFFFFFEE)
+
     assert binary_to_hex(dut.instruction.value) == "0088E463"
 
     # execute, branch SHOULD be taken !
     await RisingEdge(dut.clk) # bltu x17 x8 0x8
     assert not binary_to_hex(dut.instruction.value) == "00C00413"
     # We verify x8 value was not altered by addi instruction, because it was never meant tyo be executed (sad)
-    assert binary_to_hex(dut.regfile.registers[8].value) == "FFFFFFEE"
+    assert_reg(dut, 8, 0xFFFFFFEE)
 
     
     ##################
@@ -664,13 +793,17 @@ async def cpu_insert_test(dut):
 
     # execute, branch should NOT be taken !
     await RisingEdge(dut.clk) # bgeu x17 x8 0x8
+
+    # We check that the previous instruction hasn't altered the regfile
+    assert_reg(dut, 8, 0xFFFFFFEE)
+
     assert binary_to_hex(dut.instruction.value) == "01147463"
 
     # execute, branch SHOULD be taken !
     await RisingEdge(dut.clk) # bgeu x8 x17 0x8 
     assert not binary_to_hex(dut.instruction.value) == "00C00413"
     # We verify x8 value was not altered by addi instruction, because it was never meant tyo be executed (sad)
-    assert binary_to_hex(dut.regfile.registers[8].value) == "FFFFFFEE"
+    assert_reg(dut, 8, 0xFFFFFFEE)
 
     ##################
     # 00000397  //JALR TEST START : auipc x7 0x0    | x7 <= 00000110                PC = 0x10C 
@@ -685,11 +818,17 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.pc.value) == "0000010C"
 
     await RisingEdge(dut.clk) # auipc x7 0x00 
-    await RisingEdge(dut.clk) # addi x7 x7 0x10 
-    assert binary_to_hex(dut.regfile.registers[7].value) == "00000120"
+
+    # We check that the previous instruction hasn't altered the regfile
+    assert_reg(dut, 8, 0xFFFFFFEE)
+
+    await RisingEdge(dut.clk) # addi x7 x7 0x10
+    assert_wb(dut.writeback, 7, 0x00000120)
+    assert binary_to_hex(dut.pc_next.value) == "0000011C"
 
     await RisingEdge(dut.clk) # jalr x1  -4(x7)
-    assert binary_to_hex(dut.regfile.registers[1].value) == "00000118"
+    assert_reg(dut, 7, 0x00000120)
+    assert_wb(dut.writeback, 1, 0x00000118)
     assert not binary_to_hex(dut.instruction.value) == "00C00413"
     assert binary_to_hex(dut.regfile.registers[8].value) == "FFFFFFEE"
     assert binary_to_hex(dut.pc.value) == "0000011C"
@@ -702,13 +841,18 @@ async def cpu_insert_test(dut):
 
     # Check test's init state
     assert binary_to_hex(dut.instruction.value) == "008020A3"
+    # Check initial state, data will propagate to memory on next cycle
+    assert_dmem(dut, 0x4, 0x00000000)
 
     await RisingEdge(dut.clk) # sw x8 0x1(x0)
-    # address is 1 because 0x6 is word @ address 4 and the test bench gets data by word
-    assert binary_to_hex(dut.data_memory.mem[1].value) == "00000000" # remains UNFAZED
+   
+    # Verify that 0x4 remains UNFAZED by sw x8 1(x0)
+    assert_dmem(dut, 4, 0x00000000)
 
     await RisingEdge(dut.clk) # sb x8 0x6(x0)
-    assert binary_to_hex(dut.data_memory.mem[1].value) == "00EE0000"
+
+    # Verify that the 2nd byte in 0x4 (address 1, LE) get set by sw x8 1(x0)
+    assert_dmem(dut, 4, 0x00EE0000)
 
     #################
     # 008010A3  //SH TEST START :     sh x8 1(x0)         | NO WRITE ! (mis-aligned !)
@@ -721,25 +865,30 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "008010A3"
 
     await RisingEdge(dut.clk) # sh x8 1(x0)
-    assert binary_to_hex(dut.data_memory.mem[1].value) == "00EE0000" # remains UNFAZED
+
+   # Verify that 0x4 remains UNFAZED by sh x8 1(x0)
+    assert_dmem(dut, 4, 0x00EE0000)
+
 
     await RisingEdge(dut.clk) # sh x8 3(x0)
-    assert binary_to_hex(dut.data_memory.mem[1].value) == "00EE0000" # remains UNFAZED
 
-    await RisingEdge(dut.clk) # sh x8 6(x0) 
-    # address is 1 because 0x6 is word @ address 4 and the test bench gets data by word
-    assert binary_to_hex(dut.data_memory.mem[1].value) == "FFEE0000"
+    # Verify that 0x4 remains UNFAZED by sh x3 1(x0)
+    assert_dmem(dut, 4, 0x00EE0000)
 
-     #################
+    await RisingEdge(dut.clk) # sh x8 6(x0)
+    # Verify that write propagates to 0x4
+    assert_dmem(dut, 4, 0xFFEE0000)
+
+    #################
     # PARTIAL LOADS
     # 01000393  //LB TEST START :     addi x7 x0 0x10  
-    # FFF3A903  //                    lw x18 -1(x7)   
-    # FFF38903  //                    lb x18 -1(x7)    
-    # FFD3C983  //LBU TEST START :    lbu x19 -3(x7)   
-    # FFD39A03  //LH TEST START :     lh x20 -3(x7)    
+    # FFF3A903  //                    lw x18 -1(x7) NO READ! (misaligned!)
+    # FFF38903  //                    lb x18 -1(x7)
+    # FFD3C983  //LBU TEST START :    lbu x19 -3(x7)
+    # FFD39A03  //LH TEST START :     lh x20 -3(x7) NO READ! (misaligned!)
     # FFA39A03  //                    lh x20 -6(x7) 
-    # FFD3DA83  //LHU TEST START :    lhu x21 -3(x7)  
-    # FFA3DA83  //                    lhu x21 -6(x7)   
+    # FFD3DA83  //LHU TEST START :    lhu x21 -3(x7) NO READ! (misaligned!)
+    # FFA3DA83  //                    lhu x21 -6(x7)
     ##################
     print("\n\nTESTING LB\n\n")
 
@@ -747,26 +896,93 @@ async def cpu_insert_test(dut):
     assert binary_to_hex(dut.instruction.value) == "01000393"
 
     await RisingEdge(dut.clk) # addi x7 x0 0x10 
-    assert binary_to_hex(dut.regfile.registers[7].value) == "00000010"
+    assert_wb(dut.writeback, 7, 0x00000010)
+    assert_reg(dut, 18, 0xFFF8FF00)
 
-    assert binary_to_hex(dut.regfile.registers[18].value) == "FFF8FF00"
     await RisingEdge(dut.clk) # lw x18 -1(x7)
-    assert binary_to_hex(dut.regfile.registers[18].value) == "FFF8FF00"
 
-    await RisingEdge(dut.clk) # lb x18 -1(x7) 
-    assert binary_to_hex(dut.regfile.registers[18].value) == "FFFFFFDE"
+    # Check initial state
+    assert_reg(dut, 18, 0xFFF8FF00)
+    # Check that addi x7, x0, 0x10 propagated to x7
+    assert_reg(dut, 7, 0x00000010)
+
+    # lw x18, -1(x7) is misaligned, should not write back
+    assert not dut.writeback_enable.value
+
+    await RisingEdge(dut.clk) # lb x18 -1(x7)
+
+    # lw x18, -1(x7) should have left x18 unchanged
+    assert_reg(dut, 18, 0xFFF8FF00)
+    
+    wb = WriteBack(dut.writeback.value)
+    assert wb.dest_reg == 18
+    assert dut.writeback_data.value == 0xFFFFFFDE
 
     await RisingEdge(dut.clk) # lbu x19 -3(x7)
-    assert binary_to_hex(dut.regfile.registers[19].value) == "000000BE"
+
+    wb = WriteBack(dut.writeback.value)
+    assert wb.dest_reg == 19
+    assert dut.writeback_data.value == 0x000000BE
 
     await RisingEdge(dut.clk) # lh x20 -3(x7) 
-    assert binary_to_hex(dut.regfile.registers[20].value) == "0FFFFEEF"
+
+    # lh x20, -3(x7) is misaligned, should not write back
+    assert not dut.writeback_enable.value
 
     await RisingEdge(dut.clk) # lh x20 -6(x7)
-    assert binary_to_hex(dut.regfile.registers[20].value) == "FFFFDEAD"
+
+    # lh x20, -3(x7) should have left x20 unchanged
+    assert_reg(dut, 20, 0x0FFFFEEF)
+
+    wb = WriteBack(dut.writeback.value)
+    assert wb.dest_reg == 20
+    assert dut.writeback_data.value == 0xFFFFDEAD
 
     await RisingEdge(dut.clk) # lhu x21 -3(x7) 
+
+    # lhu x21, -3(x7) is misaligned, should not write back
+    assert not dut.writeback_enable.value
     assert binary_to_hex(dut.regfile.registers[21].value) == "FFFFFFEE"
 
     await RisingEdge(dut.clk) # lhu x21 -6(x7)
-    assert binary_to_hex(dut.regfile.registers[21].value) == "0000DEAD"
+
+    # lu x21, -3(x7) should have left x21 unchanged
+    assert_reg(dut, 21, 0xFFFFFFEE)
+
+    wb = WriteBack(dut.writeback.value)
+    assert wb.dest_reg == 21
+    assert dut.writeback_data.value == 0x0000DEAD
+
+    #########
+    # Store-write
+    # Test that we correctly forward memory writes when immediately followed by a read
+    # This is called sequential consistency
+    #########
+
+    # addi x3, x0, 256
+    await RisingEdge(dut.clk)
+    assert_wb(dut.writeback, 3,0x00000100)
+
+    # sw x3, 0x8(x0)      | 0x8 <= 256
+    await RisingEdge(dut.clk)
+
+    # Check that addi x3, x0, 256 has propagated to regfile
+    assert_reg(dut, 3, 0x00000100)
+    # Check that the data has propagated to memory
+    assert_dmem(dut, 0x8, 0x00000100)
+
+    # lw x4, 0x8(x0)      | x4 <= 256
+    await RisingEdge(dut.clk)
+
+    wb = WriteBack(dut.writeback.value)
+    print(wb)
+    print(f'current: {WriteBack(dut.next_writeback.value)}')
+    assert wb.dest_reg == 4
+    assert dut.writeback_data.value == 0x00000100
+
+    await RisingEdge(dut.clk)
+
+    # Finally, check that the read has propagated to regfile
+    assert_reg(dut, 4, 0x00000100)
+
+    print("All tests passed! 👍Very nice!👍")

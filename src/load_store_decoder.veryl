@@ -2,15 +2,15 @@ import types::LoadStoreFunct3;
 
 module LoadStoreDecoder (
     // In
-    alu_result_address: input logic<32>,
-    f3                : input logic<3> ,
-    reg_read          : input logic<32>,
+    address: input logic<32>,
+    f3     : input logic<3> ,
+    data_in: input logic<32>,
 
     // Out
     byte_enable: output logic<4> ,
-    data       : output logic<32>,
+    data_out   : output logic<32>,
 ) {
-    let offset: logic<2> = alu_result_address[1:0];
+    let offset: logic<2> = address[1:0];
 
     always_comb {
         case f3 {
@@ -19,7 +19,7 @@ module LoadStoreDecoder (
                                                                 // Any byte offset is valid; we just gotta calculate
                                                                 // the right enable mask
                                                                 byte_enable = 4'b0001 << offset;
-                                                                data        = (reg_read & 32'h000000FF) << offset * 8;
+                                                                data_out    = (data_in & 32'h000000FF) << offset * 8;
                                                             }
 
                                                             // SW
@@ -27,25 +27,25 @@ module LoadStoreDecoder (
                                        // Disallow misaligned writes by simply not performing
                                        // the write
                                        byte_enable = if (offset == 2'b00) ? 4'b1111 : 4'b0000;
-                                       data        = reg_read;
+                                       data_out    = data_in;
                                    }
 
             LoadStoreFunct3::halfword, LoadStoreFunct3::halfword_u: {
                                                                         case offset {
                                                                             2'b00: {
                                byte_enable = 4'b0011;
-                               data        = reg_read & 32'h0000FFFF;
+                               data_out    = data_in & 32'h0000FFFF;
                            }
 
                                                                             2'b10: {
                                byte_enable = 4'b1100;
-                               data        = (reg_read & 32'h0000FFFF) << 16;
+                               data_out    = (data_in & 32'h0000FFFF) << 16;
                            }
 
                            // no-op for unsupported types
                                                                             default: {
                                  byte_enable = 4'b0000;
-                                 data        = 32'hxxxxxxxx;
+                                 data_out    = 32'hxxxxxxxx;
                              }
                                                                         }
                                                                     }
@@ -53,7 +53,7 @@ module LoadStoreDecoder (
                                                                     // no-op for unsupported types
             default: {
                          byte_enable = 4'b0000;
-                         data        = 32'hxxxxxxxx;
+                         data_out    = 32'hxxxxxxxx;
                      }
         }
     }

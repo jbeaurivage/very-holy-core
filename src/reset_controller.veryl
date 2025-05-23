@@ -1,0 +1,22 @@
+module ResetController #(
+    param NUM_CYCLES: u8 = 1,
+) (
+    clk   : input clock,
+    rst_in: input reset,
+
+    rst_out: output logic,
+) {
+    var rst_delay: logic<8>;
+
+    always_ff {
+        if_reset {
+            rst_delay = NUM_CYCLES;
+        } else {
+            if rst_delay >: 0 {
+                rst_delay -= 1;
+            }
+        }
+    }
+
+    assign rst_out = |rst_delay;
+}

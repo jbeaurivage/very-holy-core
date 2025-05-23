@@ -34,7 +34,7 @@ module Control (
                                      mem_read          = true;
                                      alu_op            = AluOp::load_store;
                                      alu_source        = true; // imm
-                                     write_back_source = 2'b01; // memory_read
+                                     write_back_source = WritebackSrc::mem_read;
                                      branch            = false;
                                      jump              = false;
                                      // second_add_source is irrelevant
@@ -49,7 +49,7 @@ module Control (
                                     mem_write         = false;
                                     mem_read          = false;
                                     alu_op            = AluOp::math;
-                                    write_back_source = 2'b00; // alu_result
+                                    write_back_source = WritebackSrc::alu_result;
                                     branch            = false;
                                     jump              = false;
                                     // second_add_source is irrelevant
@@ -100,7 +100,7 @@ module Control (
                                 second_add_source = 2'bxx;
                                 alu_op            = AluOp::math;
                                 alu_source        = false; // reg2
-                                write_back_source = 2'b00; // alu_result
+                                write_back_source = WritebackSrc::alu_result;
                                 branch            = false;
                                 jump              = false;
                             }
@@ -122,23 +122,23 @@ module Control (
 
                             // J-type + JALR weird hybrid
             Opcode::j_type, Opcode::j_type_jalr: {
-                                                     reg_write  = true;
-                                                     mem_write  = false;
-                                                     mem_read   = false;
-                                                     alu_source = false;
-                                                     alu_op     = AluOp::load_store;
-                                                     // PC + 4
-                                                     write_back_source = 2'b10;
+                                                     reg_write         = true;
+                                                     mem_write         = false;
+                                                     mem_read          = false;
+                                                     alu_source        = false;
+                                                     alu_op            = AluOp::load_store;
+                                                     write_back_source = WritebackSrc::pc_plus_4;
                                                      branch            = false;
                                                      jump              = true;
 
 
                                                      // JAL
                                                      if op[3] {
-                                                         second_add_source = 2'b00;
+                                                         second_add_source = SecondAddSource::pc_plus_immediate;
                                                          imm_source        = ImmSource::j_type;
+                                                         // JALR
                                                      } else {
-                                                         second_add_source = 2'b10;
+                                                         second_add_source = SecondAddSource::reg1_plus_immediate;
                                                          imm_source        = ImmSource::i_type;
                                                      }
                                                  }
@@ -153,16 +153,16 @@ module Control (
                                                           // alu_op is irrelevant
                                                           alu_op            = 2'bxx;
                                                           reg_write         = true;
-                                                          write_back_source = 2'b11;
+                                                          write_back_source = WritebackSrc::upper_imm;
                                                           branch            = false;
                                                           jump              = false;
 
                                                           if op[5] {
                                                               // lui
-                                                              second_add_source = 2'b01;
+                                                              second_add_source = SecondAddSource::raw_immediate;
                                                           } else {
                                                               // auipc
-                                                              second_add_source = 2'b00;
+                                                              second_add_source = SecondAddSource::pc_plus_immediate;
                                                           }
                                                       }
 

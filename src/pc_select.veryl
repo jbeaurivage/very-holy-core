@@ -1,0 +1,46 @@
+import types::SecondAddSource;
+
+module PcSelect (
+    clk: input clock,
+    // For controlled reset
+    rst: input logic,
+
+    pc_source        : input logic    ,
+    second_add_source: input logic<2> ,
+    read_reg1        : input logic<32>,
+    immediate        : input logic<32>,
+
+    pc                : output logic<32>,
+    pc_read           : output logic<32>,
+    pc_next           : output logic<32>,
+    pc_plus_four      : output logic<32>,
+    pc_plus_second_add: output logic<32>,
+) {
+
+    assign pc_plus_second_add = case second_add_source {
+        SecondAddSource::pc_plus_immediate  : pc + immediate,
+        SecondAddSource::raw_immediate      : immediate,
+        SecondAddSource::reg1_plus_immediate: read_reg1 + immediate,
+        default                             : 0,
+    };
+
+    always_comb {
+        pc_plus_four = pc + 4;
+        if pc_source {
+            pc_next = pc_plus_second_add;
+        } else {
+            pc_next = pc_plus_four;
+        }
+    }
+
+    always_ff {
+        if rst {
+            pc = 0;
+        } else {
+            pc = pc_next;
+        }
+    }
+
+    assign pc_read = if rst ? 0 : pc_next;
+
+}

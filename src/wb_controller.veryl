@@ -1,0 +1,69 @@
+import types::Writeback;
+import types::WritebackSrc;
+
+module WritebackControl (
+    clk: input clock,
+
+    dest_reg          : input logic       <5> ,
+    reg_write         : input bool            ,
+    byte_enable_mask  : input logic       <4> ,
+    f3                : input logic       <3> ,
+    data_source       : input WritebackSrc    ,
+    alu_result        : input logic       <32>,
+    pc_plus_four      : input logic       <32>,
+    pc_plus_second_add: input logic       <32>,
+
+    mem_read_valid: input bool     ,
+    mem_read_data : input logic<32>,
+
+    next_writeback: output Writeback    ,
+    writeback     : output Writeback    ,
+    wb_data       : output logic    <32>,
+    wb_enable     : output bool         ,
+) {
+    // Prepare writeback
+    always_comb {
+        next_writeback.dest_reg         = dest_reg;
+        next_writeback.reg_write        = reg_write;
+        next_writeback.byte_enable_mask = byte_enable_mask;
+        next_writeback.f3               = f3;
+
+        case data_source {
+            WritebackSrc::alu_result: {
+                                          next_writeback.data        = alu_result;
+                                          next_writeback.is_mem_read = false;
+                                      }
+
+            WritebackSrc::mem_read: {
+                                        // Data will come from memory at next stage
+                                        next_writeback.data        = 32'bxxxxxxxx;
+                                        next_writeback.is_mem_read = true;
+                                    }
+
+            WritebackSrc::pc_plus_4: {
+                                         next_writeback.data        = pc_plus_four;
+                                         next_writeback.is_mem_read = false;
+                                     }
+
+            WritebackSrc::upper_imm: {
+                                         next_writeback.data        = pc_plus_second_add;
+                                         next_writeback.is_mem_read = false;
+                                     }
+
+                                     // Unreachable, but avoid inferring latch
+            default: {
+                         next_writeback.data        = 0;
+                         next_writeback.is_mem_read = false;
+                     }
+        }
+    }
+
+    // Forward writeback to next cycle
+    always_ff {
+        writeback = next_writeback;
+    }
+
+    // Mux between the read memory, or the previous stage writeback result
+    assign wb_data   = if writeback.is_mem_read ? mem_read_data : writeback.data;
+    assign wb_enable = if writeback.is_mem_read ? writeback.reg_write && mem_read_valid : writeback.reg_write;
+}

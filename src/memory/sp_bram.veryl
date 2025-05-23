@@ -1,0 +1,51 @@
+/// Single-port Block RAM, with byte write-enable.
+///
+/// Memory is word-addressed. Use write_byte_enable
+/// to enable write to individual bytes.
+pub module SinglePortBlockRam #(
+    /// Initialize memory with hex file if not empty
+    param INIT_FILE: string = "",
+    /// Number of columns per entry. Default 4 = 4 bytes/word
+    param NUM_COL: u8 = 4,
+    /// Number of bits per column. Default 8 bits = 1 byte
+    param COL_WIDTH: u8 = 8,
+    /// Number of entries in RAM. Default 1024 = 1024 32-bit words
+    param RAM_DEPTH: u32 = 1024,
+) (
+    clk              : input clock            ,
+    rst_n            : input logic            ,
+    enable           : input bool             ,
+    address          : input logic<ADDR_WIDTH>,
+    write_data       : input logic<DATA_WIDTH>,
+    byte_write_enable: input logic<NUM_COL>   ,
+
+    read_data: output logic<DATA_WIDTH>,
+) {
+    const ADDR_WIDTH: u32                           = $clog2(RAM_DEPTH);
+    const DATA_WIDTH: u8                            = NUM_COL * COL_WIDTH;
+    var mem       : logic<DATA_WIDTH> [RAM_DEPTH];
+
+    initial {
+        if INIT_FILE != "" {
+            $readmemh(INIT_FILE, mem);
+        }
+    }
+
+    always_ff {
+        for i: u32 in 0..NUM_COL {
+            if enable {
+                if byte_write_enable[i] {
+                    mem[address][(i * COL_WIDTH)+:COL_WIDTH] = write_data[(i * COL_WIDTH)+:COL_WIDTH];
+                }
+            }
+        }
+    }
+
+    always_ff {
+        if !rst_n {
+            read_data = 0;
+        } else if enable {
+            read_data = mem[address];
+        }
+    }
+}

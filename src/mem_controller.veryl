@@ -2,15 +2,17 @@
 /// Byte addressed, but only supports
 /// word-aligned reads and writes.
 /// Misaligned requests will be silently ignored
-module Memory #(
+///
+/// Timing
+/// BRAM has a 1-cycle read and write latencies.
+/// read_valid will be asserted when a read is valid.
+module MemoryController #(
     param mem_init: string = "",
     /// Number of words
     param RAM_DEPTH: u32 = 1024,
 ) (
     clk  : input clock,
     rst_n: input reset,
-    /// Port enable
-    enable: input bool,
     /// Memory is word-addressed. Use byte_enable to write individual bytes
     address   : input logic<32>,
     write_data: input logic<32>,
@@ -23,11 +25,14 @@ module Memory #(
     /* verilator lint_off WIDTHTRUNC */
     let aligned_address: logic<30> = (address >> 2);
     /* verilator lint_on WIDTHTRUNC */
-    // Inhibit misaligned requests
-    let allow: bool = enable && address[1:0] == 0;
 
-    inst ram: sp_bram #(
+    // Inhibit misaligned requests
+    let allow: bool = address[1:0] == 0;
+
+    inst ram: SinglePortBlockRam #(
         INIT_FILE: mem_init,
+        NUM_COL  : 4       ,
+        COL_WIDTH: 8       ,
         RAM_DEPTH          ,
     ) (
         clk          ,

@@ -94,4 +94,27 @@ package types {
         j_type = 3'b011,
         u_type = 3'b100,
     }
+
+    enum SecondAddSource: logic<2> {
+        pc_plus_immediate = 2'b00,
+        raw_immediate = 2'b01,
+        reg1_plus_immediate = 2'b10,
+    }
+
+    struct Writeback {
+        is_mem_read     : bool     ,
+        reg_write       : bool     ,
+        f3              : logic<3> ,
+        byte_enable_mask: logic<4> ,
+        dest_reg        : logic<5> ,
+        data            : logic<32>,
+    }
+
+    /// Register write-back source
+    enum WritebackSrc: logic<2> {
+        alu_result = 2'b00,
+        mem_read = 2'b01,
+        pc_plus_4 = 2'b10,
+        upper_imm = 2'b11,
+    }
 }

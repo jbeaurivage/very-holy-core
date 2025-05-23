@@ -13,11 +13,11 @@ async def ls_unit_test(dut):
 
     for _ in range(100):
         reg_data = random.randint(0, 0xFFFFFFFF)
-        dut.reg_read.value = reg_data
+        dut.data_in.value = reg_data
         for offset in range(4):
-            dut.alu_result_address.value = word | offset
+            dut.address.value = word | offset
             await Timer(1, units="ns")
-            assert dut.data.value == reg_data & 0xFFFFFFFF
+            assert dut.data_out.value == reg_data & 0xFFFFFFFF
             if offset == 0b00:
                 assert dut.byte_enable.value == 0b1111
             else :
@@ -32,12 +32,12 @@ async def ls_unit_test(dut):
 
     for _ in range(100):
         reg_data = random.randint(0, 0xFFFFFFFF)
-        dut.reg_read.value = reg_data
+        dut.data_in.value = reg_data
         for offset in range(4):
-            dut.alu_result_address.value = word | offset
+            dut.address.value = word | offset
             await Timer(1, units="ns")
             assert dut.byte_enable.value == 0b0001 << offset
-            assert dut.data.value == (reg_data & 0x000000FF) << offset * 8
+            assert dut.data_out.value == (reg_data & 0x000000FF) << offset * 8
 
     # ====
     # SH
@@ -48,15 +48,15 @@ async def ls_unit_test(dut):
     
     for _ in range(100):
         reg_data = random.randint(0, 0xFFFFFFFF)
-        dut.reg_read.value = reg_data
+        dut.data_in.value = reg_data
         for offset in range(4):
-            dut.alu_result_address.value = word | offset
+            dut.address.value = word | offset
             await Timer(1, units="ns")
             if offset == 0b00:
                 assert dut.byte_enable.value == 0b0011
-                assert dut.data.value == (reg_data & 0x0000FFFF)
+                assert dut.data_out.value == (reg_data & 0x0000FFFF)
             elif offset == 0b10:
                 assert dut.byte_enable.value == 0b1100
-                assert dut.data.value == (reg_data & 0x0000FFFF) << 16
+                assert dut.data_out.value == (reg_data & 0x0000FFFF) << 16
             else:
                 assert dut.byte_enable.value == 0b0000

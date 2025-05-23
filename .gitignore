@@ -12,9 +12,11 @@ temp.py
 vivado/
 *.jou
 *.log
+.Xil/
 test_projects/
 
 dependencies/
 .build/
 target/
 *.f
+src/tests/test_alu.veryl

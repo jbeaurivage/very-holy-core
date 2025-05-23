@@ -3,6 +3,9 @@ name = "very_holy_core"
 version = "0.1.0"
 authors = ["Justin Beaurivage <code@beaurivage.io>"]
 
+[dependencies]
+# memory = { path = "./memory" }
+
 [build]
 clock_type = "posedge"
 reset_type = "async_low"
