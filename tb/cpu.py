@@ -134,20 +134,7 @@ def assert_wb(wb_val, dest_reg, expected):
     Writeback(wb_val.value).assert_wb(dest_reg, expected)
 
 def assert_reg_contents(dut, reg, expected):
-    reg_value = dut.regfile_wrapper.regfile.registers[reg].value
-    assert expected == reg_value, f'Expected {expected:8x} at register {reg}, got {binary_to_hex(reg_value)}'
-
-def assert_reg(dut, src, reg, expected):
-    if src == 1:
-        reg_address = dut.reg_read_addr1.value
-        reg_value = dut.reg_read_data1.value
-    elif src == 2:
-        reg_address = dut.reg_read_addr2.value
-        reg_value = dut.reg_read_data2.value
-    else :
-        raise ValueError('src must be either 1 or 2.')
-    
-    assert reg == reg_address, f'Expected to read from register {reg}, got {int(str(reg_address), 2)}'
+    reg_value = dut.regfile.registers[reg].value
     assert expected == reg_value, f'Expected {expected:8x} at register {reg}, got {binary_to_hex(reg_value)}'
 
 def assert_dmem(dut, address, expected):
@@ -247,7 +234,6 @@ async def cpu_insert_test(dut):
     # (but is not yet written to the regfile)
    
     assert dut.data_memory.write_data == 0xDEADBEEF
-    assert_reg(dut, 2, 18, 0xDEADBEEF)
 
     # Execute sw x18 0xC(x0)
     await RisingEdge(dut.clk)
@@ -427,7 +413,7 @@ async def cpu_insert_test(dut):
 
     # Check test's init state
     assert binary_to_hex(dut.instruction.value) == "1AB38D13"
-    assert not binary_to_hex(dut.regfile_wrapper.regfile.registers[26].value) == "DEADC09A"
+    assert not binary_to_hex(dut.regfile.registers[26].value) == "DEADC09A"
 
     await RisingEdge(dut.clk) # addi x26 x7 0x1AB
 
@@ -514,7 +500,7 @@ async def cpu_insert_test(dut):
     assert_wb(dut.writeback, 18, 0x21524445)
 
     await RisingEdge(dut.clk) # xori x19 x18 0x000
-    assert_wb(dut.writeback, 19, dut.regfile_wrapper.regfile.registers[18].value)
+    assert_wb(dut.writeback, 19, dut.regfile.registers[18].value)
 
     ##################
     # AAA9EA13  //ORI TEST START :    ori x20 x19 0xAAA   | x20 <= FFFFFEEF
@@ -529,7 +515,7 @@ async def cpu_insert_test(dut):
     assert_wb(dut.writeback, 20, 0xFFFFFEEF)
 
     await RisingEdge(dut.clk) # ori x21 x20 0x000
-    assert_wb(dut.writeback, 21, dut.regfile_wrapper.regfile.registers[20].value)
+    assert_wb(dut.writeback, 21, dut.regfile.registers[20].value)
 
     ##################
     # 7FFA7913  //ANDI TEST START :   andi x18 x20 0x7FF  | x18 <= 000006EF
@@ -547,7 +533,7 @@ async def cpu_insert_test(dut):
     await RisingEdge(dut.clk) # andi x19 x21 0xFFF
     # Check that the result has propagated to regfile from previous instr
     assert_reg_contents(dut, 18, 0x000006EF)
-    assert_wb(dut.writeback, 19, dut.regfile_wrapper.regfile.registers[21].value)
+    assert_wb(dut.writeback, 19, dut.regfile.registers[21].value)
     assert_wb(dut.writeback, 19, 0xFFFFFEEF)
 
     await RisingEdge(dut.clk) # andi x20 x21 0x000 
@@ -707,7 +693,7 @@ async def cpu_insert_test(dut):
 
     # Check test's init state
     assert binary_to_hex(dut.instruction.value) == "0088C463"
-    assert binary_to_hex(dut.regfile_wrapper.regfile.registers[17].value) == "000711F0"
+    assert binary_to_hex(dut.regfile.registers[17].value) == "000711F0"
 
     # execute, branch should NOT be taken !
     await RisingEdge(dut.clk) # blt x17 x8 0x8
@@ -844,7 +830,7 @@ async def cpu_insert_test(dut):
     assert_reg_contents(dut, 7, 0x00000120)
     assert_wb(dut.writeback, 1, 0x00000118)
     assert not binary_to_hex(dut.instruction.value) == "00C00413"
-    assert binary_to_hex(dut.regfile_wrapper.regfile.registers[8].value) == "FFFFFFEE"
+    assert binary_to_hex(dut.regfile.registers[8].value) == "FFFFFFEE"
     assert binary_to_hex(dut.pc.value) == "0000011C"
 
     ################
@@ -956,7 +942,7 @@ async def cpu_insert_test(dut):
 
     # lhu x21, -3(x7) is misaligned, should not write back
     assert not dut.writeback_enable.value
-    assert binary_to_hex(dut.regfile_wrapper.regfile.registers[21].value) == "FFFFFFEE"
+    assert binary_to_hex(dut.regfile.registers[21].value) == "FFFFFFEE"
 
     await RisingEdge(dut.clk) # lhu x21 -6(x7)
 

@@ -57,12 +57,12 @@ module Cpu (
     var pc_plus_second_add: logic<32>;
 
     inst pc_selector: PcSelect (
-        clk                              ,
-        rst              : pc_reset      ,
-        pc_source                        ,
-        second_add_source                ,
-        read_reg1        : reg_read_data1,
-        immediate                        ,
+        clk                        ,
+        rst              : pc_reset,
+        pc_source                  ,
+        second_add_source          ,
+        read_reg1        : operand1,
+        immediate                  ,
 
         pc                  ,
         pc_read             ,
@@ -132,7 +132,7 @@ module Cpu (
     );
 
     // Regfile
-    let source_reg1   : logic<5> = instruction[19:15];
+    let reg_read_addr1: logic<5> = instruction[19:15];
     let reg_read_addr2: logic<5> = instruction[24:20];
 
     // The data that's currently being written back to the regfile.
@@ -172,19 +172,41 @@ module Cpu (
     var reg_read_data1: logic<32>;
     var reg_read_data2: logic<32>;
 
-    inst regfile_wrapper: RegfileWritebackWrapper (
+    inst regfile: Regfile (
         clk    ,
         rst_n  ,
 
-        address1  : source_reg1   ,
-        address2  : reg_read_addr2,
+        address1: reg_read_addr1,
+        address2: reg_read_addr2,
+
         read_data1: reg_read_data1,
         read_data2: reg_read_data2,
+
+        write_enable: writeback_enable  ,
+        write_data  : writeback_data    ,
+        address3    : writeback.dest_reg,
+    );
+
+    // Writeback multiplexer
+    var operand1: logic<32>;
+    var operand2: logic<32>;
+
+    inst wb_mux: WritebackMux (
+        clk    ,
+        rst_n  ,
+
+        address1      : reg_read_addr1,
+        address2      : reg_read_addr2,
+        reg_read_data1                ,
+        reg_read_data2                ,
 
         writeback_enable  ,
         writeback_data    ,
         mem_read_data     ,
         writeback         ,
+
+        operand1  ,
+        operand2  ,
     );
 
     // Sign extend
@@ -202,16 +224,16 @@ module Cpu (
 
     let alu_src2: logic<32> = case alu_source {
         AluSource::immediate: immediate,
-        default             : reg_read_data2,
+        default             : operand2,
     };
 
     inst alu: Alu (
-        alu_control                ,
-        src1       : reg_read_data1,
-        src2       : alu_src2      ,
-        alu_result                 ,
-        zero       : alu_zero      ,
-        last_bit   : alu_last_bit  ,
+        alu_control              ,
+        src1       : operand1    ,
+        src2       : alu_src2    ,
+        alu_result               ,
+        zero       : alu_zero    ,
+        last_bit   : alu_last_bit,
     );
 
     // Load/store decoder
@@ -221,7 +243,7 @@ module Cpu (
     inst load_store_decoder: LoadStoreDecoder (
         address    : alu_result     ,
         f3                          ,
-        data_in    : reg_read_data2 ,
+        data_in    : operand2       ,
         byte_enable: mem_byte_enable,
         data_out   : mem_write_data ,
     );

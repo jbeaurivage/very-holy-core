@@ -1,0 +1,50 @@
+/// Selects between the regfile output and the writeback
+/// data, depending on whether the writeback
+/// is currently being written to the regfile
+/// and is also in use in the current operation.
+///
+/// Used to forward operands from WB to EXEC/ALU stage.
+module WritebackMux (
+    clk  : input clock,
+    rst_n: input reset,
+
+    // -- Regfile incoming signals --
+    address1      : input logic<5> ,
+    address2      : input logic<5> ,
+    reg_read_data1: input logic<32>,
+    reg_read_data2: input logic<32>,
+
+    // -- Writeback input signals --
+    writeback_enable: input bool         ,
+    writeback_data  : input logic    <32>,
+    mem_read_data   : input logic    <32>,
+    writeback       : input types::Writeback    ,
+
+    // -- Multiplexed output signals --
+    operand1: output logic<32>,
+    operand2: output logic<32>,
+) {
+
+    always_comb {
+        if writeback_enable && address1 == writeback.dest_reg {
+            if writeback.is_mem_read {
+                operand1 = mem_read_data;
+            } else {
+                operand1 = writeback.data;
+            }
+        } else {
+            operand1 = reg_read_data1;
+        }
+
+        if writeback_enable && address2 == writeback.dest_reg {
+            if writeback.is_mem_read {
+                operand2 = mem_read_data;
+            } else {
+                operand2 = writeback.data;
+            }
+        } else {
+            operand2 = reg_read_data2;
+        }
+
+    }
+}

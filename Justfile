@@ -23,5 +23,5 @@ test TEST *extra_args:
 		{{justfile_directory()}}/src/*.veryl \
 		{{justfile_directory()}}/src/memory/*.veryl \
 		{{justfile_directory()}}/src/load_store/*.veryl \
-		{{justfile_directory()}}/src/regfile_wb/*.veryl \
+		{{justfile_directory()}}/src/writeback/*.veryl \
 		--wave --quiet {{extra_args}}
