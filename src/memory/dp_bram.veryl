@@ -16,8 +16,8 @@ pub module DualPortBlockRam #(
     /// Number of entries in RAM. Default 1024 = 1024 32-bit words
     param RAM_DEPTH: u32 = 1024,
 ) (
-    clk  : input clock,
-    rst_n: input logic,
+    clk  : input clock          ,
+    rst_n: input reset_async_low,
 
     enable_a           : input  bool             ,
     address_a          : input  logic<ADDR_WIDTH>,

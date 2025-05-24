@@ -1,0 +1,80 @@
+import types::Writeback;
+
+/// Register file writeback wrapper
+///
+/// Selects between the regfile output and the writeback
+/// data, depending on whether the writeback
+/// is currently being written to the regfile
+/// and is also in use in the current operation.
+///
+/// This has the advantage of presenting a unified interface
+/// with the illusion that the register file always outputs
+/// the "correct" data, whether it's being forwarded from
+/// the writeback stage, or from the register file.
+///
+/// The writes to the regfile are completely controlled
+/// by the writeback stage. Thus we don't expose the
+/// "regular" regfile write signals.
+///
+/// Makes for MUCH easier testing and debugging, instead
+/// of having to always take into account whether the data
+/// we're looking for comes from WB or regfile.
+module RegfileWritebackWrapper (
+    clk  : input clock,
+    rst_n: input reset,
+
+    // -- Regular regfile interface reads --
+    address1: input logic<5>,
+    address2: input logic<5>,
+
+    read_data1: output logic<32>,
+    read_data2: output logic<32>,
+
+    // -- Writeback signals --
+    writeback_enable: input bool         ,
+    writeback_data  : input logic    <32>,
+    mem_read_data   : input logic    <32>,
+    writeback       : input Writeback    ,
+
+) {
+    var read_reg1: logic<32>;
+    var read_reg2: logic<32>;
+
+    inst regfile: Regfile (
+        clk    ,
+        rst_n  ,
+
+        address1  ,
+        address2  ,
+
+        read_data1: read_reg1,
+        read_data2: read_reg2,
+
+        write_enable: writeback_enable  ,
+        write_data  : writeback_data    ,
+        address3    : writeback.dest_reg,
+    );
+
+    always_comb {
+        if writeback_enable && address1 == writeback.dest_reg {
+            if writeback.is_mem_read {
+                read_data1 = mem_read_data;
+            } else {
+                read_data1 = writeback.data;
+            }
+        } else {
+            read_data1 = read_reg1;
+        }
+
+        if writeback_enable && address2 == writeback.dest_reg {
+            if writeback.is_mem_read {
+                read_data2 = mem_read_data;
+            } else {
+                read_data2 = writeback.data;
+            }
+        } else {
+            read_data2 = read_reg2;
+        }
+
+    }
+}

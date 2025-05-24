@@ -9,19 +9,19 @@ module Control (
     alu_last_bit: input logic   ,
 
     // Out
-    alu_control      : output logic<4>,
-    imm_source       : output logic<3>,
-    mem_write        : output bool    ,
-    mem_read         : output bool    ,
-    reg_write        : output bool    ,
-    alu_source       : output bool    ,
-    write_back_source: output logic<2>,
-    pc_source        : output logic   ,
-    second_add_source: output logic<2>,
+    alu_control      : output AluControl     ,
+    imm_source       : output ImmSource      ,
+    mem_write        : output bool           ,
+    mem_read         : output bool           ,
+    reg_write        : output bool           ,
+    alu_source       : output AluSource      ,
+    write_back_source: output WritebackSrc   ,
+    pc_source        : output logic          ,
+    second_add_source: output SecondAddSource,
 ) {
-    var alu_op: logic<2>;
-    var branch: bool    ;
-    var jump  : bool    ;
+    var alu_op: AluOp;
+    var branch: bool ;
+    var jump  : bool ;
 
     // Main decoder
     always_comb {
@@ -33,19 +33,19 @@ module Control (
                                      mem_write         = false;
                                      mem_read          = true;
                                      alu_op            = AluOp::load_store;
-                                     alu_source        = true; // imm
+                                     alu_source        = AluSource::immediate;
                                      write_back_source = WritebackSrc::mem_read;
                                      branch            = false;
                                      jump              = false;
                                      // second_add_source is irrelevant
-                                     second_add_source = 2'bxx;
+                                     second_add_source = SecondAddSource::pc_plus_immediate;
                                  }
 
                                  // ALU I-type
                                  // (Or: I-types that don't interact with memory)
             Opcode::i_type_alu: {
                                     imm_source        = ImmSource::i_type;
-                                    alu_source        = true; // imm
+                                    alu_source        = AluSource::immediate;
                                     mem_write         = false;
                                     mem_read          = false;
                                     alu_op            = AluOp::math;
@@ -53,7 +53,7 @@ module Control (
                                     branch            = false;
                                     jump              = false;
                                     // second_add_source is irrelevant
-                                    second_add_source = 2'bxx;
+                                    second_add_source = SecondAddSource::pc_plus_immediate;
 
                                     // If we have a shift with a constant to handle, we have to invalidate writes for
                                     // instructions that does not have a well-formated immediate with "f7" and a 5bits shamt
@@ -80,11 +80,11 @@ module Control (
                                 mem_write  = true;
                                 mem_read   = false;
                                 alu_op     = AluOp::load_store;
-                                alu_source = true;
+                                alu_source = AluSource::immediate;
                                 // write_back_source is irrelevant for S-types
-                                write_back_source = 2'bxx;
+                                write_back_source = WritebackSrc::alu_result;
                                 // second_add_source is irrelevant
-                                second_add_source = 2'bxx;
+                                second_add_source = SecondAddSource::pc_plus_immediate;
                                 branch            = false;
                                 jump              = false;
                             }
@@ -95,11 +95,11 @@ module Control (
                                 mem_write = false;
                                 mem_read  = false;
                                 // imm_source is irrelevant for R-types
-                                imm_source = 3'bxxx;
+                                imm_source = ImmSource::i_type;
                                 // second_add_source is irrelevant
-                                second_add_source = 2'bxx;
+                                second_add_source = SecondAddSource::pc_plus_immediate;
                                 alu_op            = AluOp::math;
-                                alu_source        = false; // reg2
+                                alu_source        = AluSource::src2;
                                 write_back_source = WritebackSrc::alu_result;
                                 branch            = false;
                                 jump              = false;
@@ -109,15 +109,15 @@ module Control (
             Opcode::b_type: {
                                 reg_write  = false;
                                 imm_source = ImmSource::b_type;
-                                alu_source = false;
+                                alu_source = AluSource::src2;
                                 mem_write  = false;
                                 mem_read   = false;
                                 alu_op     = AluOp::branches;
                                 // write_back_source is irrelevant for B-types
-                                write_back_source = 2'bxx;
+                                write_back_source = WritebackSrc::alu_result;
                                 branch            = true;
                                 jump              = false;
-                                second_add_source = 2'b00;
+                                second_add_source = SecondAddSource::pc_plus_immediate;
                             }
 
                             // J-type + JALR weird hybrid
@@ -125,7 +125,7 @@ module Control (
                                                      reg_write         = true;
                                                      mem_write         = false;
                                                      mem_read          = false;
-                                                     alu_source        = false;
+                                                     alu_source        = AluSource::src2;
                                                      alu_op            = AluOp::load_store;
                                                      write_back_source = WritebackSrc::pc_plus_4;
                                                      branch            = false;
@@ -149,9 +149,9 @@ module Control (
                                                           mem_write  = false;
                                                           mem_read   = false;
                                                           // alu_source is irrelevant
-                                                          alu_source = 1'bx;
+                                                          alu_source = AluSource::src2;
                                                           // alu_op is irrelevant
-                                                          alu_op            = 2'bxx;
+                                                          alu_op            = AluOp::load_store;
                                                           reg_write         = true;
                                                           write_back_source = WritebackSrc::upper_imm;
                                                           branch            = false;
@@ -168,16 +168,16 @@ module Control (
 
                                                       // Everything else
             default: {
-                         reg_write         = false;
-                         imm_source        = 3'b000;
-                         alu_source        = 1'b0;
-                         mem_write         = false;
+                         reg_write         = false; // important
+                         imm_source        = ImmSource::i_type;
+                         alu_source        = AluSource::src2;
+                         mem_write         = false; // important
                          mem_read          = false;
-                         alu_op            = 2'b00;
-                         write_back_source = 2'b00;
-                         branch            = false;
-                         jump              = false;
-                         second_add_source = 2'b00;
+                         alu_op            = AluOp::load_store;
+                         write_back_source = WritebackSrc::pc_plus_4;
+                         branch            = false; // important
+                         jump              = false; // important
+                         second_add_source = SecondAddSource::pc_plus_immediate;
                      }
         }
     }
@@ -247,11 +247,11 @@ module Control (
                                              alu_control = AluControl::sra;
                                          } else {
                                              // Default
-                                             alu_control = 4'b1111;
+                                             alu_control = AluControl::undefined;
                                          }
                                      }
 
-                                 default: alu_control = 4'b1111;
+                                 default: alu_control = AluControl::undefined;
                              }
                          }
 
@@ -262,12 +262,12 @@ module Control (
                                      BranchFunct3::beq, BranchFunct3::bne  : alu_control = AluControl::sub;
                                      BranchFunct3::blt, BranchFunct3::bge  : alu_control = AluControl::slt;
                                      BranchFunct3::bltu, BranchFunct3::bgeu: alu_control = AluControl::sltu;
-                                     default                               : alu_control = 4'b1111;
+                                     default                               : alu_control = AluControl::undefined;
                                  }
                              }
 
                              // Everything else
-            default: alu_control = 4'b1111;
+            default: alu_control = AluControl::undefined;
         }
     }
 

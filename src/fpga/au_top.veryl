@@ -1,0 +1,39 @@
+module au_top (
+    clk  : input clock,
+    rst_n: input reset,
+
+    led: output logic<8>,
+
+    usb_rx: input  logic,
+    usb_tx: output logic,
+
+) {
+    var sysclk       : logic;
+    var clk_locked   : bool ;
+    let clock_gen_rst: logic = rst_n;
+
+    // inst clk_gen: $sv::clk_wiz_0 (
+    //     clk_in1: clk          ,
+    //     clk_out: sysclk       ,
+    //     r#reset: clock_gen_rst,
+    //     locked : clk_locked   ,
+    // );
+
+    inst cpu: Cpu (
+        clk            ,
+        rst_n          ,
+        led  : led[7:1],
+    );
+
+    // Activity LED
+    var r_count: logic<32>;
+    always_ff {
+        if_reset {
+            led[0] = 0;
+            usb_tx = 0;
+        } else {
+            r_count += 1;
+            led[0]  =  r_count[22];
+        }
+    }
+}

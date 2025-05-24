@@ -12,12 +12,12 @@ pub module SinglePortBlockRam #(
     /// Number of entries in RAM. Default 1024 = 1024 32-bit words
     param RAM_DEPTH: u32 = 1024,
 ) (
-    clk              : input clock            ,
-    rst_n            : input logic            ,
-    enable           : input bool             ,
-    address          : input logic<ADDR_WIDTH>,
-    write_data       : input logic<DATA_WIDTH>,
-    byte_write_enable: input logic<NUM_COL>   ,
+    clk              : input clock                      ,
+    rst_n            : input reset_async_low            ,
+    enable           : input bool                       ,
+    address          : input logic          <ADDR_WIDTH>,
+    write_data       : input logic          <DATA_WIDTH>,
+    byte_write_enable: input logic          <NUM_COL>   ,
 
     read_data: output logic<DATA_WIDTH>,
 ) {

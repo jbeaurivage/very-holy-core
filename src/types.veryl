@@ -1,4 +1,8 @@
 package types {
+
+    /// CPU datapath width
+    type Datawidth = logic<32>;
+
     /// Cache state
     enum CacheState: logic<3> {
         idle = 3'b000,
@@ -27,6 +31,11 @@ package types {
         load_store = 2'b00,
         branches = 2'b01,
         math = 2'b10,
+    }
+
+    enum AluSource: logic {
+        src2 = 1'b0,
+        immediate = 1'b1,
     }
 
     /// "Math" f3 (R&I instruction types)
@@ -84,6 +93,7 @@ package types {
         sltu = 4'b0111,
         xor = 4'b1000,
         sra = 4'b1001,
+        undefined = 4'b1111,
     }
 
     /// Immediate source

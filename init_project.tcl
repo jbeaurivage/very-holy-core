@@ -7,7 +7,7 @@ create_project $projName "$projDir" -part $device
 set_property design_mode RTL [get_filesets sources_1]
 
 # List of directories to search for .sv files
-set sourceDirs [list "./target/veryl" "./target/veryl/memory"]
+set sourceDirs [list "./target/veryl" "./target/veryl/fpga" "./target/veryl/memory" "./target/veryl/load_store" "target/veryl/regfile_wb"]
 
 # Initialize empty list for all SystemVerilog files
 set verilogSources [list]

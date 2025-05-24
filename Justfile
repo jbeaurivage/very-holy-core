@@ -1,5 +1,6 @@
 alias t := test
 alias b := build
+alias c := check
 
 vivado:
 	veryl build --quiet
@@ -11,8 +12,16 @@ wave file:
 build:
 	veryl build --quiet
 
+check:
+	veryl check --quiet
+
+fmt:
+	veryl fmt --quiet
+
 test TEST *extra_args:
 	veryl test {{justfile_directory()}}/src/tests/test_{{TEST}}.veryl \
 		{{justfile_directory()}}/src/*.veryl \
 		{{justfile_directory()}}/src/memory/*.veryl \
+		{{justfile_directory()}}/src/load_store/*.veryl \
+		{{justfile_directory()}}/src/regfile_wb/*.veryl \
 		--wave --quiet {{extra_args}}

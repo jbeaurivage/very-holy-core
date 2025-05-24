@@ -3,8 +3,29 @@ import types::*;
 module Cpu (
     clk  : input clock,
     rst_n: input reset,
+
+    // I/O
+    led   : output logic<7>,
+    usb_rx: input  logic   ,
+    usb_tx: output logic   ,
 ) {
     const RESET_CYCLES: u8 = 1;
+
+    // Activity LED
+    // All this is to keep synthesis from optimizing design out
+    var tick: bool;
+    always_ff {
+        if_reset {
+            tick     = false;
+            led[6:1] = 6'b000000;
+            usb_tx   = 0;
+        } else {
+            tick   = !tick;
+            led[6] = tick;
+            led[0] = if instruction == 32'h00000013 ? 1 : 0;
+
+        }
+    }
 
     // Delay PC advancement by one clock cycle after reset
     // to allow fetching first instruction
@@ -36,12 +57,12 @@ module Cpu (
     var pc_plus_second_add: logic<32>;
 
     inst pc_selector: PcSelect (
-        clk                        ,
-        rst              : pc_reset,
-        pc_source                  ,
-        second_add_source          ,
-        read_reg1        : src1    ,
-        immediate                  ,
+        clk                              ,
+        rst              : pc_reset      ,
+        pc_source                        ,
+        second_add_source                ,
+        read_reg1        : reg_read_data1,
+        immediate                        ,
 
         pc                  ,
         pc_read             ,
@@ -50,18 +71,19 @@ module Cpu (
         pc_plus_second_add  ,
     );
 
-    // The fetched instruction
+    // The fetched instruction we will decode and execute.
     var instruction: logic<32>;
 
     // Instruction memory
     // Acts as a ROM.
     inst instruction_memory: MemoryController #(
-        RAM_DEPTH: 1024,
+        RAM_DEPTH: 1024           ,
+        INIT_FILE: "test_imem.hex",
     ) (
         clk             ,
         rst_n           ,
         address: pc_read,
-        // Disallow any write
+        // Disallow any write in instruction mem
         byte_write_enable: 4'b0000,
         write_data       : 32'bx  ,
 
@@ -110,12 +132,11 @@ module Cpu (
     );
 
     // Regfile
-    let source_reg1: logic<5>  = instruction[19:15];
-    let source_reg2: logic<5>  = instruction[24:20];
-    var read_reg1  : logic<32>;
-    var read_reg2  : logic<32>;
+    let source_reg1   : logic<5> = instruction[19:15];
+    let reg_read_addr2: logic<5> = instruction[24:20];
 
-    // The data that's currently being written back to the regfile
+    // The data that's currently being written back to the regfile.
+    // Comes to us from the last cycle through the pipeline.
     var writeback: Writeback;
     // Prepare the next writeback in the pipeline
     var next_writeback: Writeback;
@@ -147,19 +168,23 @@ module Cpu (
         wb_enable     : writeback_enable,
     );
 
-    inst regfile: Regfile (
+    // Register file with writeback
+    var reg_read_data1: logic<32>;
+    var reg_read_data2: logic<32>;
+
+    inst regfile_wrapper: RegfileWritebackWrapper (
         clk    ,
         rst_n  ,
 
-        address1: source_reg1,
-        address2: source_reg2,
+        address1  : source_reg1   ,
+        address2  : reg_read_addr2,
+        read_data1: reg_read_data1,
+        read_data2: reg_read_data2,
 
-        read_data1: read_reg1,
-        read_data2: read_reg2,
-
-        write_enable: writeback_enable  ,
-        write_data  : writeback_data    ,
-        address3    : writeback.dest_reg,
+        writeback_enable  ,
+        writeback_data    ,
+        mem_read_data     ,
+        writeback         ,
     );
 
     // Sign extend
@@ -175,44 +200,18 @@ module Cpu (
     // ALU
     var alu_result: logic<32>;
 
-    var src1: logic<32>;
-    var src2: logic<32>;
-
-    always_comb {
-        if writeback_enable && source_reg1 == writeback.dest_reg {
-            if writeback.is_mem_read {
-                src1 = mem_read_data;
-            } else {
-                src1 = writeback.data;
-            }
-        } else {
-            src1 = read_reg1;
-        }
-
-        if writeback_enable && source_reg2 == writeback.dest_reg {
-            if writeback.is_mem_read {
-                src2 = mem_read_data;
-            } else {
-                src2 = writeback.data;
-            }
-        } else {
-            src2 = read_reg2;
-        }
-
-    }
-
     let alu_src2: logic<32> = case alu_source {
-        1'b1   : immediate,
-        default: src2,
+        AluSource::immediate: immediate,
+        default             : reg_read_data2,
     };
 
     inst alu: Alu (
-        alu_control              ,
-        src1       : src1        ,
-        src2       : alu_src2    ,
-        alu_result               ,
-        zero       : alu_zero    ,
-        last_bit   : alu_last_bit,
+        alu_control                ,
+        src1       : reg_read_data1,
+        src2       : alu_src2      ,
+        alu_result                 ,
+        zero       : alu_zero      ,
+        last_bit   : alu_last_bit  ,
     );
 
     // Load/store decoder
@@ -222,7 +221,7 @@ module Cpu (
     inst load_store_decoder: LoadStoreDecoder (
         address    : alu_result     ,
         f3                          ,
-        data_in    : src2           ,
+        data_in    : reg_read_data2 ,
         byte_enable: mem_byte_enable,
         data_out   : mem_write_data ,
     );
