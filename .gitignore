@@ -20,4 +20,3 @@ dependencies/
 .build/
 target/
 *.f
-src/tests/test_alu.veryl
