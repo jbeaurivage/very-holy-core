@@ -1,8 +1,6 @@
-/// Dual-port Block RAM.
-/// Port A can be read and written. Supports
+/// True Dual-port Block RAM.
+/// Ports A and B can be read and written. Supports
 /// individual byte writes.
-///
-///Port B only supports reads.
 ///
 /// Memory is word-addressed. Use write_byte_enable
 /// to enable write to individual bytes.
@@ -16,8 +14,7 @@ pub module DualPortBlockRam #(
     /// Number of entries in RAM. Default 1024 = 1024 32-bit words
     param RAM_DEPTH: u32 = 1024,
 ) (
-    clk  : input clock          ,
-    rst_n: input reset_async_low,
+    clk: input clock,
 
     enable_a           : input  bool             ,
     address_a          : input  logic<ADDR_WIDTH>,
@@ -25,9 +22,11 @@ pub module DualPortBlockRam #(
     byte_write_enable_a: input  logic<NUM_COL>   ,
     read_data_a        : output logic<DATA_WIDTH>,
 
-    enable_b   : input  bool             ,
-    address_b  : input  logic<ADDR_WIDTH>,
-    read_data_b: output logic<DATA_WIDTH>,
+    enable_b           : input  bool             ,
+    address_b          : input  logic<ADDR_WIDTH>,
+    write_data_b       : input  logic<DATA_WIDTH>,
+    byte_write_enable_b: input  logic<NUM_COL>   ,
+    read_data_b        : output logic<DATA_WIDTH>,
 ) {
     const ADDR_WIDTH: u32                           = $clog2(RAM_DEPTH);
     const DATA_WIDTH: u8                            = NUM_COL * COL_WIDTH;
@@ -40,27 +39,23 @@ pub module DualPortBlockRam #(
     }
 
     always_ff {
-        for i: u32 in 0..NUM_COL {
-            if enable_a {
+        if enable_a {
+            for i: u32 in 0..NUM_COL {
                 if byte_write_enable_a[i] {
                     mem[address_a][(i * COL_WIDTH)+:COL_WIDTH] = write_data_a[(i * COL_WIDTH)+:COL_WIDTH];
                 }
             }
-        }
-    }
-
-    always_ff {
-        if !rst_n {
-            read_data_a = 0;
-        } else if enable_a {
             read_data_a = mem[address_a];
         }
     }
 
     always_ff {
-        if !rst_n {
-            read_data_b = 0;
-        } else if enable_b {
+        if enable_b {
+            for i: u32 in 0..NUM_COL {
+                if byte_write_enable_b[i] {
+                    mem[address_b][(i * COL_WIDTH)+:COL_WIDTH] = write_data_b[(i * COL_WIDTH)+:COL_WIDTH];
+                }
+            }
             read_data_b = mem[address_b];
         }
     }
