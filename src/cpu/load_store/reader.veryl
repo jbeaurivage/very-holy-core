@@ -37,26 +37,26 @@ module Reader (
             LoadStoreFunct3::word: raw_data = masked_data;
             // LB, LBU
             LoadStoreFunct3::byte, LoadStoreFunct3::byte_u: {
-                                                                case be_mask {
-                                                                    4'b0001: raw_data = masked_data;
-                                                                    4'b0010: raw_data = masked_data >> 8;
-                                                                    4'b0100: raw_data = masked_data >> 16;
-                                                                    4'b1000: raw_data = masked_data >> 24;
+                case be_mask {
+                    4'b0001: raw_data = masked_data;
+                    4'b0010: raw_data = masked_data >> 8;
+                    4'b0100: raw_data = masked_data >> 16;
+                    4'b1000: raw_data = masked_data >> 24;
 
-                                                                    default: raw_data = 0;
-                                                                }
-                                                            }
+                    default: raw_data = 0;
+                }
+            }
 
 
-                                                            // LH, LHU
+            // LH, LHU
             LoadStoreFunct3::halfword, LoadStoreFunct3::halfword_u: {
-                                                                        case be_mask {
-                                                                            4'b0011: raw_data = masked_data;
-                                                                            4'b1100: raw_data = masked_data >> 16;
+                case be_mask {
+                    4'b0011: raw_data = masked_data;
+                    4'b1100: raw_data = masked_data >> 16;
 
-                                                                            default: raw_data = 0;
-                                                                        }
-                                                                    }
+                    default: raw_data = 0;
+                }
+            }
 
             default: raw_data = 0;
         }

@@ -19,18 +19,20 @@ module au_top (
     //     locked : clk_locked   ,
     // );
 
-    inst cpu: Cpu (
-        clk            ,
-        rst_n          ,
-        led  : led[7:1],
+    inst soc: Soc (
+        clk             ,
+        rst_n           ,
+        led   : led[7:1],
+        usb_rx          ,
+        usb_tx          ,
     );
 
     // Activity LED
     var r_count: logic<32>;
     always_ff {
         if_reset {
-            led[0] = 0;
-            usb_tx = 0;
+            r_count = 0;
+            led[0]  = 0;
         } else {
             r_count += 1;
             led[0]  =  r_count[22];

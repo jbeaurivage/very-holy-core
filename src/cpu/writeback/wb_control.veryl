@@ -30,31 +30,31 @@ module WritebackControl (
 
         case data_source {
             WritebackSrc::alu_result: {
-                                          next_writeback.data        = alu_result;
-                                          next_writeback.is_mem_read = false;
-                                      }
+                next_writeback.data        = alu_result;
+                next_writeback.is_mem_read = false;
+            }
 
             WritebackSrc::mem_read: {
-                                        // Data will come from memory at next stage
-                                        next_writeback.data        = 32'bxxxxxxxx;
-                                        next_writeback.is_mem_read = true;
-                                    }
+                // Data will come from memory at next stage
+                next_writeback.data        = 32'bxxxxxxxx;
+                next_writeback.is_mem_read = true;
+            }
 
             WritebackSrc::pc_plus_4: {
-                                         next_writeback.data        = pc_plus_four;
-                                         next_writeback.is_mem_read = false;
-                                     }
+                next_writeback.data        = pc_plus_four;
+                next_writeback.is_mem_read = false;
+            }
 
             WritebackSrc::upper_imm: {
-                                         next_writeback.data        = pc_plus_second_add;
-                                         next_writeback.is_mem_read = false;
-                                     }
+                next_writeback.data        = pc_plus_second_add;
+                next_writeback.is_mem_read = false;
+            }
 
-                                     // Unreachable, but avoid inferring latch
+            // Unreachable, but avoid inferring latch
             default: {
-                         next_writeback.data        = 0;
-                         next_writeback.is_mem_read = false;
-                     }
+                next_writeback.data        = 0;
+                next_writeback.is_mem_read = false;
+            }
         }
     }
 

@@ -1,7 +1,7 @@
 interface BramPort #(
-    param COL_WIDTH : u8 = 8 ,
-    param NUM_COL   : u8 = 4 ,
-    param ADDR_WIDTH: u8 = 32,
+    param COL_WIDTH : u8  = 8 ,
+    param NUM_COL   : u8  = 4 ,
+    param ADDR_WIDTH: u32 = 32,
 ) {
     const DATA_WIDTH: u8 = COL_WIDTH * NUM_COL;
 
@@ -19,7 +19,7 @@ interface BramPort #(
         read_data        : output,
     }
 
-     modport master {
+    modport master {
         ..converse(slave)
     }
 }

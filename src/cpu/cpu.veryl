@@ -4,28 +4,16 @@ module Cpu (
     clk  : input clock,
     rst_n: input reset,
 
-    // I/O
-    led   : output logic<7>,
-    usb_rx: input  logic   ,
-    usb_tx: output logic   ,
+    // The fetched instruction we will decode and execute
+    instruction: input  logic<32>,
+    imem_addr  : output logic<32>,
+
+    dmem_read_data        : input  logic<32>,
+    dmem_addr             : output logic<32>,
+    dmem_write_data       : output logic<32>,
+    dmem_byte_write_enable: output logic<4> ,
 ) {
     const RESET_CYCLES: u8 = 1;
-
-    // Activity LED
-    // All this is to keep synthesis from optimizing design out
-    var tick: bool;
-    always_ff {
-        if_reset {
-            tick     = false;
-            led[6:1] = 6'b000000;
-            usb_tx   = 0;
-        } else {
-            tick   = !tick;
-            led[6] = tick;
-            led[0] = if instruction == 32'h00000013 ? 1 : 0;
-
-        }
-    }
 
     // Delay PC advancement by one clock cycle after reset
     // to allow fetching first instruction
@@ -42,10 +30,6 @@ module Cpu (
     // Current program counter
     var pc: logic<32>;
 
-    // Address at which the instruction will be read.
-    // Allows for reading address 0x00 into instruction
-    // 1 cycle before PC starts advancing.
-    var pc_read: logic<32>;
 
     // Next instruction to fetch
     var pc_next: logic<32>;
@@ -64,30 +48,14 @@ module Cpu (
         read_reg1        : operand1,
         immediate                  ,
 
-        pc                  ,
-        pc_read             ,
-        pc_next             ,
-        pc_plus_four        ,
-        pc_plus_second_add  ,
-    );
-
-    // The fetched instruction we will decode and execute.
-    var instruction: logic<32>;
-
-    // Instruction memory
-    // Acts as a ROM.
-    inst instruction_memory: MemoryController #(
-        RAM_DEPTH: 1024           ,
-        INIT_FILE: "test_imem.hex",
-    ) (
-        clk             ,
-        rst_n           ,
-        address: pc_read,
-        // Disallow any write in instruction mem
-        byte_write_enable: 4'b0000,
-        write_data       : 32'bx  ,
-
-        read_data: instruction,
+        // Address at which the instruction will be read.
+        // Allows for reading address 0x00 into instruction
+        // 1 cycle before PC starts advancing.
+        pc_read           : imem_addr,
+        pc                           ,
+        pc_next                      ,
+        pc_plus_four                 ,
+        pc_plus_second_add           ,
     );
 
     // Control
@@ -237,41 +205,28 @@ module Cpu (
     );
 
     // Load/store decoder
-    var mem_byte_enable: logic<4> ;
-    var mem_write_data : logic<32>;
+    var mem_byte_enable: logic<4>;
 
     inst load_store_decoder: LoadStoreDecoder (
         address    : alu_result     ,
         f3                          ,
         data_in    : operand2       ,
         byte_enable: mem_byte_enable,
-        data_out   : mem_write_data ,
+        data_out   : dmem_write_data,
     );
 
     var mem_read_data : logic<32>;
     var mem_read_valid: bool     ;
 
-
     // Data memory
-    var mem_raw_read     : logic<32>;
-    var read_request     : bool     ;
-    let byte_write_enable: logic<4>  = if mem_write ? mem_byte_enable : 4'b0000;
-
-    inst data_memory: MemoryController #(
-        RAM_DEPTH: 1024,
-    ) (
-        clk                                         ,
-        rst_n                                       ,
-        address          : {alu_result[31:2], 2'b00},
-        write_data       : mem_write_data           ,
-        byte_write_enable: byte_write_enable        ,
-        read_data        : mem_raw_read             ,
-    );
+    var read_request          : bool;
+    assign dmem_addr              = {alu_result[31:2], 2'b00};
+    assign dmem_byte_write_enable = if mem_write ? mem_byte_enable : 4'b0000;
 
     // Split the reads into bytes, halfwords or words, depending on the op
     // This module is in the second pipeline stage (writeback)
     inst mem_reader: Reader (
-        mem_data: mem_raw_read              ,
+        mem_data: dmem_read_data            ,
         be_mask : writeback.byte_enable_mask,
         f3      : writeback.f3              ,
 

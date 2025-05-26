@@ -28,157 +28,157 @@ module Control (
         case op {
             // I-Type (load)
             Opcode::i_type_load: {
-                                     reg_write         = true;
-                                     imm_source        = ImmSource::i_type;
-                                     mem_write         = false;
-                                     mem_read          = true;
-                                     alu_op            = AluOp::load_store;
-                                     alu_source        = AluSource::immediate;
-                                     write_back_source = WritebackSrc::mem_read;
-                                     branch            = false;
-                                     jump              = false;
-                                     // second_add_source is irrelevant
-                                     second_add_source = SecondAddSource::pc_plus_immediate;
-                                 }
+                reg_write         = true;
+                imm_source        = ImmSource::i_type;
+                mem_write         = false;
+                mem_read          = true;
+                alu_op            = AluOp::load_store;
+                alu_source        = AluSource::immediate;
+                write_back_source = WritebackSrc::mem_read;
+                branch            = false;
+                jump              = false;
+                // second_add_source is irrelevant
+                second_add_source = SecondAddSource::pc_plus_immediate;
+            }
 
-                                 // ALU I-type
-                                 // (Or: I-types that don't interact with memory)
+            // ALU I-type
+            // (Or: I-types that don't interact with memory)
             Opcode::i_type_alu: {
-                                    imm_source        = ImmSource::i_type;
-                                    alu_source        = AluSource::immediate;
-                                    mem_write         = false;
-                                    mem_read          = false;
-                                    alu_op            = AluOp::math;
-                                    write_back_source = WritebackSrc::alu_result;
-                                    branch            = false;
-                                    jump              = false;
-                                    // second_add_source is irrelevant
-                                    second_add_source = SecondAddSource::pc_plus_immediate;
+                imm_source        = ImmSource::i_type;
+                alu_source        = AluSource::immediate;
+                mem_write         = false;
+                mem_read          = false;
+                alu_op            = AluOp::math;
+                write_back_source = WritebackSrc::alu_result;
+                branch            = false;
+                jump              = false;
+                // second_add_source is irrelevant
+                second_add_source = SecondAddSource::pc_plus_immediate;
 
-                                    // If we have a shift with a constant to handle, we have to invalidate writes for
-                                    // instructions that does not have a well-formated immediate with "f7" and a 5bits shamt
-                                    // ie :
-                                    // - 7 upper bits are interpreted as a "f7", ony valid for a restricted selection tested below
-                                    // - 5 lower as shift_amt (because max shift is 32bits and 2^5 = 32).
-                                    if func3 == Funct3::sll {
-                                        // slli only accepts f7 7'b0000000
-                                        reg_write = func7 == ShiftsF7::sll_srl;
-                                    } else if func3 == Funct3::srl_sra {
-                                        // srli only accept f7 7'b0000000
-                                        // srai only accept f7 7'b0100000
-                                        reg_write = func7 == ShiftsF7::sll_srl | func7 == ShiftsF7::sra;
+                // If we have a shift with a constant to handle, we have to invalidate writes for
+                // instructions that does not have a well-formated immediate with "f7" and a 5bits shamt
+                // ie :
+                // - 7 upper bits are interpreted as a "f7", ony valid for a restricted selection tested below
+                // - 5 lower as shift_amt (because max shift is 32bits and 2^5 = 32).
+                if func3 == Funct3::sll {
+                    // slli only accepts f7 7'b0000000
+                    reg_write = func7 == ShiftsF7::sll_srl;
+                } else if func3 == Funct3::srl_sra {
+                    // srli only accept f7 7'b0000000
+                    // srai only accept f7 7'b0100000
+                    reg_write = func7 == ShiftsF7::sll_srl | func7 == ShiftsF7::sra;
 
-                                    } else {
-                                        reg_write = true;
-                                    }
-                                }
+                } else {
+                    reg_write = true;
+                }
+            }
 
-                                // S-Type (sw)
+            // S-Type (sw)
             Opcode::s_type: {
-                                reg_write  = false;
-                                imm_source = ImmSource::s_type;
-                                mem_write  = true;
-                                mem_read   = false;
-                                alu_op     = AluOp::load_store;
-                                alu_source = AluSource::immediate;
-                                // write_back_source is irrelevant for S-types
-                                write_back_source = WritebackSrc::alu_result;
-                                // second_add_source is irrelevant
-                                second_add_source = SecondAddSource::pc_plus_immediate;
-                                branch            = false;
-                                jump              = false;
-                            }
+                reg_write  = false;
+                imm_source = ImmSource::s_type;
+                mem_write  = true;
+                mem_read   = false;
+                alu_op     = AluOp::load_store;
+                alu_source = AluSource::immediate;
+                // write_back_source is irrelevant for S-types
+                write_back_source = WritebackSrc::alu_result;
+                // second_add_source is irrelevant
+                second_add_source = SecondAddSource::pc_plus_immediate;
+                branch            = false;
+                jump              = false;
+            }
 
-                            // R-Type
+            // R-Type
             Opcode::r_type: {
-                                reg_write = true;
-                                mem_write = false;
-                                mem_read  = false;
-                                // imm_source is irrelevant for R-types
-                                imm_source = ImmSource::i_type;
-                                // second_add_source is irrelevant
-                                second_add_source = SecondAddSource::pc_plus_immediate;
-                                alu_op            = AluOp::math;
-                                alu_source        = AluSource::src2;
-                                write_back_source = WritebackSrc::alu_result;
-                                branch            = false;
-                                jump              = false;
-                            }
+                reg_write = true;
+                mem_write = false;
+                mem_read  = false;
+                // imm_source is irrelevant for R-types
+                imm_source = ImmSource::i_type;
+                // second_add_source is irrelevant
+                second_add_source = SecondAddSource::pc_plus_immediate;
+                alu_op            = AluOp::math;
+                alu_source        = AluSource::src2;
+                write_back_source = WritebackSrc::alu_result;
+                branch            = false;
+                jump              = false;
+            }
 
-                            // B-type
+            // B-type
             Opcode::b_type: {
-                                reg_write  = false;
-                                imm_source = ImmSource::b_type;
-                                alu_source = AluSource::src2;
-                                mem_write  = false;
-                                mem_read   = false;
-                                alu_op     = AluOp::branches;
-                                // write_back_source is irrelevant for B-types
-                                write_back_source = WritebackSrc::alu_result;
-                                branch            = true;
-                                jump              = false;
-                                second_add_source = SecondAddSource::pc_plus_immediate;
-                            }
+                reg_write  = false;
+                imm_source = ImmSource::b_type;
+                alu_source = AluSource::src2;
+                mem_write  = false;
+                mem_read   = false;
+                alu_op     = AluOp::branches;
+                // write_back_source is irrelevant for B-types
+                write_back_source = WritebackSrc::alu_result;
+                branch            = true;
+                jump              = false;
+                second_add_source = SecondAddSource::pc_plus_immediate;
+            }
 
-                            // J-type + JALR weird hybrid
+            // J-type + JALR weird hybrid
             Opcode::j_type, Opcode::j_type_jalr: {
-                                                     reg_write         = true;
-                                                     mem_write         = false;
-                                                     mem_read          = false;
-                                                     alu_source        = AluSource::src2;
-                                                     alu_op            = AluOp::load_store;
-                                                     write_back_source = WritebackSrc::pc_plus_4;
-                                                     branch            = false;
-                                                     jump              = true;
+                reg_write         = true;
+                mem_write         = false;
+                mem_read          = false;
+                alu_source        = AluSource::src2;
+                alu_op            = AluOp::load_store;
+                write_back_source = WritebackSrc::pc_plus_4;
+                branch            = false;
+                jump              = true;
 
 
-                                                     // JAL
-                                                     if op[3] {
-                                                         second_add_source = SecondAddSource::pc_plus_immediate;
-                                                         imm_source        = ImmSource::j_type;
-                                                         // JALR
-                                                     } else {
-                                                         second_add_source = SecondAddSource::reg1_plus_immediate;
-                                                         imm_source        = ImmSource::i_type;
-                                                     }
-                                                 }
+                // JAL
+                if op[3] {
+                    second_add_source = SecondAddSource::pc_plus_immediate;
+                    imm_source        = ImmSource::j_type;
+                    // JALR
+                } else {
+                    second_add_source = SecondAddSource::reg1_plus_immediate;
+                    imm_source        = ImmSource::i_type;
+                }
+            }
 
-                                                 // U-type
+            // U-type
             Opcode::u_type_lui, Opcode::u_type_auipc: {
-                                                          imm_source = ImmSource::u_type;
-                                                          mem_write  = false;
-                                                          mem_read   = false;
-                                                          // alu_source is irrelevant
-                                                          alu_source = AluSource::src2;
-                                                          // alu_op is irrelevant
-                                                          alu_op            = AluOp::load_store;
-                                                          reg_write         = true;
-                                                          write_back_source = WritebackSrc::upper_imm;
-                                                          branch            = false;
-                                                          jump              = false;
+                imm_source = ImmSource::u_type;
+                mem_write  = false;
+                mem_read   = false;
+                // alu_source is irrelevant
+                alu_source = AluSource::src2;
+                // alu_op is irrelevant
+                alu_op            = AluOp::load_store;
+                reg_write         = true;
+                write_back_source = WritebackSrc::upper_imm;
+                branch            = false;
+                jump              = false;
 
-                                                          if op[5] {
-                                                              // lui
-                                                              second_add_source = SecondAddSource::raw_immediate;
-                                                          } else {
-                                                              // auipc
-                                                              second_add_source = SecondAddSource::pc_plus_immediate;
-                                                          }
-                                                      }
+                if op[5] {
+                    // lui
+                    second_add_source = SecondAddSource::raw_immediate;
+                } else {
+                    // auipc
+                    second_add_source = SecondAddSource::pc_plus_immediate;
+                }
+            }
 
-                                                      // Everything else
+            // Everything else
             default: {
-                         reg_write         = false; // important
-                         imm_source        = ImmSource::i_type;
-                         alu_source        = AluSource::src2;
-                         mem_write         = false; // important
-                         mem_read          = false;
-                         alu_op            = AluOp::load_store;
-                         write_back_source = WritebackSrc::pc_plus_4;
-                         branch            = false; // important
-                         jump              = false; // important
-                         second_add_source = SecondAddSource::pc_plus_immediate;
-                     }
+                reg_write         = false; // important
+                imm_source        = ImmSource::i_type;
+                alu_source        = AluSource::src2;
+                mem_write         = false; // important
+                mem_read          = false;
+                alu_op            = AluOp::load_store;
+                write_back_source = WritebackSrc::pc_plus_4;
+                branch            = false; // important
+                jump              = false; // important
+                second_add_source = SecondAddSource::pc_plus_immediate;
+            }
         }
     }
 
@@ -190,83 +190,83 @@ module Control (
 
             // R-Types and ALU I-Types
             AluOp::math: {
-                             case func3 {
+                case func3 {
 
-                                 // ADD (and sub with a different f7)
-                                 Funct3::add_sub: {
-                                         // 2 scenarios here:
-                                         // - R-TYPE : either add or sub and we need to a check for that
-                                         // - I-Type : addi -> we use add arithmetic
+                    // ADD (and sub with a different f7)
+                    Funct3::add_sub: {
+                        // 2 scenarios here:
+                        // - R-TYPE : either add or sub and we need to a check for that
+                        // - I-Type : addi -> we use add arithmetic
 
-                                         if op == Opcode::r_type {
-                                             // R-type
-                                             alu_control = if func7[5] ? AluControl::sub : AluControl::add;
-                                         } else {
-                                             // I-type
-                                             alu_control = AluControl::add;
-                                         }
-                                     }
+                        if op == Opcode::r_type {
+                            // R-type
+                            alu_control = if func7[5] ? AluControl::sub : AluControl::add;
+                        } else {
+                            // I-type
+                            alu_control = AluControl::add;
+                        }
+                    }
 
-                                     // AND
-                                 Funct3::and: {
-                                     alu_control = AluControl::and;
-                                 }
+                    // AND
+                    Funct3::and: {
+                        alu_control = AluControl::and;
+                    }
 
-                                 // OR
-                                 Funct3::or: {
-                                    alu_control = AluControl::or;
-                                }
+                    // OR
+                    Funct3::or: {
+                        alu_control = AluControl::or;
+                    }
 
-                                // Set less than
-                                 Funct3::slt: {
-                                     alu_control = AluControl::slt;
-                                 }
+                    // Set less than
+                    Funct3::slt: {
+                        alu_control = AluControl::slt;
+                    }
 
-                                 // Set less than unsigned
-                                 Funct3::sltu: {
-                                      alu_control = AluControl::sltu;
-                                  }
+                    // Set less than unsigned
+                    Funct3::sltu: {
+                        alu_control = AluControl::sltu;
+                    }
 
-                                  // XOR
-                                 Funct3::xor: {
-                                     alu_control = AluControl::xor;
-                                 }
+                    // XOR
+                    Funct3::xor: {
+                        alu_control = AluControl::xor;
+                    }
 
-                                 // SHIFT LEFT LOGICAL
-                                 Funct3::sll: {
-                                     alu_control = AluControl::sll;
-                                 }
+                    // SHIFT LEFT LOGICAL
+                    Funct3::sll: {
+                        alu_control = AluControl::sll;
+                    }
 
-                                 // SHIFT RIGHT LOGICAL + ARITHMETIC
-                                 Funct3::srl_sra: {
-                                         if func7 == ShiftsF7::sll_srl {
-                                             // Logical
-                                             alu_control = AluControl::srl;
-                                         } else if func7 == ShiftsF7::sra {
-                                             // Arithmetic
-                                             alu_control = AluControl::sra;
-                                         } else {
-                                             // Default
-                                             alu_control = AluControl::undefined;
-                                         }
-                                     }
+                    // SHIFT RIGHT LOGICAL + ARITHMETIC
+                    Funct3::srl_sra: {
+                        if func7 == ShiftsF7::sll_srl {
+                            // Logical
+                            alu_control = AluControl::srl;
+                        } else if func7 == ShiftsF7::sra {
+                            // Arithmetic
+                            alu_control = AluControl::sra;
+                        } else {
+                            // Default
+                            alu_control = AluControl::undefined;
+                        }
+                    }
 
-                                 default: alu_control = AluControl::undefined;
-                             }
-                         }
+                    default: alu_control = AluControl::undefined;
+                }
+            }
 
 
-                         // B-types
+            // B-types
             AluOp::branches: {
-                                 case func3 {
-                                     BranchFunct3::beq, BranchFunct3::bne  : alu_control = AluControl::sub;
-                                     BranchFunct3::blt, BranchFunct3::bge  : alu_control = AluControl::slt;
-                                     BranchFunct3::bltu, BranchFunct3::bgeu: alu_control = AluControl::sltu;
-                                     default                               : alu_control = AluControl::undefined;
-                                 }
-                             }
+                case func3 {
+                    BranchFunct3::beq, BranchFunct3::bne  : alu_control = AluControl::sub;
+                    BranchFunct3::blt, BranchFunct3::bge  : alu_control = AluControl::slt;
+                    BranchFunct3::bltu, BranchFunct3::bgeu: alu_control = AluControl::sltu;
+                    default                               : alu_control = AluControl::undefined;
+                }
+            }
 
-                             // Everything else
+            // Everything else
             default: alu_control = AluControl::undefined;
         }
     }

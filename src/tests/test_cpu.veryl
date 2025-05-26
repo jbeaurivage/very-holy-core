@@ -1,2 +1,2 @@
-#[test(test_cpu, Cpu)]
+#[test(test_cpu, Soc)]
 include (cocotb, "../../tb/cpu.py");

@@ -16,45 +16,45 @@ module LoadStoreDecoder (
         case f3 {
             // SB, LB, LBU
             LoadStoreFunct3::byte, LoadStoreFunct3::byte_u: {
-                                                                // Any byte offset is valid; we just gotta calculate
-                                                                // the right enable mask
-                                                                byte_enable = 4'b0001 << offset;
-                                                                data_out    = (data_in & 32'h000000FF) << offset * 8;
-                                                            }
+                // Any byte offset is valid; we just gotta calculate
+                // the right enable mask
+                byte_enable = 4'b0001 << offset;
+                data_out    = (data_in & 32'h000000FF) << offset * 8;
+            }
 
-                                                            // SW
+            // SW
             LoadStoreFunct3::word: {
-                                       // Disallow misaligned writes by simply not performing
-                                       // the write
-                                       byte_enable = if (offset == 2'b00) ? 4'b1111 : 4'b0000;
-                                       data_out    = data_in;
-                                   }
+                // Disallow misaligned writes by simply not performing
+                // the write
+                byte_enable = if (offset == 2'b00) ? 4'b1111 : 4'b0000;
+                data_out    = data_in;
+            }
 
             LoadStoreFunct3::halfword, LoadStoreFunct3::halfword_u: {
-                                                                        case offset {
-                                                                            2'b00: {
-                               byte_enable = 4'b0011;
-                               data_out    = data_in & 32'h0000FFFF;
-                           }
+                case offset {
+                    2'b00: {
+                        byte_enable = 4'b0011;
+                        data_out    = data_in & 32'h0000FFFF;
+                    }
 
-                                                                            2'b10: {
-                               byte_enable = 4'b1100;
-                               data_out    = (data_in & 32'h0000FFFF) << 16;
-                           }
+                    2'b10: {
+                        byte_enable = 4'b1100;
+                        data_out    = (data_in & 32'h0000FFFF) << 16;
+                    }
 
-                           // no-op for unsupported types
-                                                                            default: {
-                                 byte_enable = 4'b0000;
-                                 data_out    = 32'hxxxxxxxx;
-                             }
-                                                                        }
-                                                                    }
+                    // no-op for unsupported types
+                    default: {
+                        byte_enable = 4'b0000;
+                        data_out    = 32'hxxxxxxxx;
+                    }
+                }
+            }
 
-                                                                    // no-op for unsupported types
+            // no-op for unsupported types
             default: {
-                         byte_enable = 4'b0000;
-                         data_out    = 32'hxxxxxxxx;
-                     }
+                byte_enable = 4'b0000;
+                data_out    = 32'hxxxxxxxx;
+            }
         }
     }
 }

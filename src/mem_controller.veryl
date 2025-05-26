@@ -21,6 +21,10 @@ module MemoryController #(
 
     read_data: output logic<32>,
 ) {
+    const ADDR_WIDTH: u32 = $clog2(RAM_DEPTH);
+    const NUM_COL   : u8  = 4;
+    const COL_WIDTH : u8  = 8;
+
     // Take the word-aligned part of the address
     /* verilator lint_off WIDTHTRUNC */
     let aligned_address: logic<30> = (address >> 2);
@@ -29,21 +33,24 @@ module MemoryController #(
     // Inhibit misaligned requests
     let allow: bool = address[1:0] == 0;
 
-    inst ram: SinglePortBlockRam #(
-        INIT_FILE: INIT_FILE,
-        NUM_COL  : 4        ,
-        COL_WIDTH: 8        ,
-        RAM_DEPTH           ,
-    ) (
-        clk          ,
-        rst_n        ,
-        enable: allow,
-        /* verilator lint_off WIDTHTRUNC */
-        address: aligned_address,
-        /* verilator lint_on WIDTHTRUNC */
-        write_data         ,
-        byte_write_enable  ,
+    inst port       : BramPort #( ADDR_WIDTH, NUM_COL, COL_WIDTH );
+    assign port.enable = allow;
+    /* verilator lint_off WIDTHTRUNC */
+    assign port.address = aligned_address;
+    /* verilator lint_on WIDTHTRUNC */
+    assign port.write_data        = write_data;
+    assign port.byte_write_enable = byte_write_enable;
+    assign read_data              = port.read_data;
 
-        read_data  ,
+    inst ram: SinglePortBlockRam #(
+        INIT_FILE : INIT_FILE,
+        NUM_COL              ,
+        COL_WIDTH            ,
+        RAM_DEPTH            ,
+        ADDR_WIDTH           ,
+    ) (
+        clk    ,
+        rst_n  ,
+        port   ,
     );
 }
