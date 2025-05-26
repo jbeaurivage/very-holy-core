@@ -15,9 +15,9 @@ module WritebackMux (
     reg_read_data2: input logic<32>,
 
     // -- Writeback input signals --
-    writeback_enable: input bool         ,
-    writeback_data  : input logic    <32>,
-    mem_read_data   : input logic    <32>,
+    writeback_enable: input bool                ,
+    writeback_data  : input logic           <32>,
+    mem_read_data   : input logic           <32>,
     writeback       : input types::Writeback    ,
 
     // -- Multiplexed output signals --

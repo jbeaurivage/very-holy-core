@@ -63,7 +63,7 @@ module WritebackControl (
         writeback = next_writeback;
     }
 
-    // Mux between the read memory, or the previous stage writeback result
+    // Mux reg write between the read memory, or the previous stage writeback result
     assign wb_data   = if writeback.is_mem_read ? mem_read_data : writeback.data;
     assign wb_enable = if writeback.is_mem_read ? writeback.reg_write && mem_read_valid : writeback.reg_write;
 }
