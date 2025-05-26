@@ -1,0 +1,25 @@
+interface BramPort #(
+    param COL_WIDTH : u8 = 8 ,
+    param NUM_COL   : u8 = 4 ,
+    param ADDR_WIDTH: u8 = 32,
+) {
+    const DATA_WIDTH: u8 = COL_WIDTH * NUM_COL;
+
+    var enable           : bool             ;
+    var address          : logic<ADDR_WIDTH>;
+    var write_data       : logic<DATA_WIDTH>;
+    var byte_write_enable: logic<NUM_COL>   ;
+    var read_data        : logic<DATA_WIDTH>;
+
+    modport slave {
+        enable           : input ,
+        address          : input ,
+        write_data       : input ,
+        byte_write_enable: input ,
+        read_data        : output,
+    }
+
+     modport master {
+        ..converse(slave)
+    }
+}

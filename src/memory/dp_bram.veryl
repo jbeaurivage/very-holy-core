@@ -16,17 +16,8 @@ pub module DualPortBlockRam #(
 ) (
     clk: input clock,
 
-    enable_a           : input  bool             ,
-    address_a          : input  logic<ADDR_WIDTH>,
-    write_data_a       : input  logic<DATA_WIDTH>,
-    byte_write_enable_a: input  logic<NUM_COL>   ,
-    read_data_a        : output logic<DATA_WIDTH>,
-
-    enable_b           : input  bool             ,
-    address_b          : input  logic<ADDR_WIDTH>,
-    write_data_b       : input  logic<DATA_WIDTH>,
-    byte_write_enable_b: input  logic<NUM_COL>   ,
-    read_data_b        : output logic<DATA_WIDTH>,
+    port_a: modport BramPort::slave,
+    port_b: modport BramPort::slave,
 ) {
     const ADDR_WIDTH: u32                           = $clog2(RAM_DEPTH);
     const DATA_WIDTH: u8                            = NUM_COL * COL_WIDTH;
@@ -39,24 +30,24 @@ pub module DualPortBlockRam #(
     }
 
     always_ff {
-        if enable_a {
+        if port_a.enable {
             for i: u32 in 0..NUM_COL {
-                if byte_write_enable_a[i] {
-                    mem[address_a][(i * COL_WIDTH)+:COL_WIDTH] = write_data_a[(i * COL_WIDTH)+:COL_WIDTH];
+                if port_a.byte_write_enable[i] {
+                    mem[port_a.address][(i * COL_WIDTH)+:COL_WIDTH] = port_a.write_data[(i * COL_WIDTH)+:COL_WIDTH];
                 }
             }
-            read_data_a = mem[address_a];
+            port_a.read_data = mem[port_a.address];
         }
     }
 
     always_ff {
-        if enable_b {
+        if port_b.enable {
             for i: u32 in 0..NUM_COL {
-                if byte_write_enable_b[i] {
-                    mem[address_b][(i * COL_WIDTH)+:COL_WIDTH] = write_data_b[(i * COL_WIDTH)+:COL_WIDTH];
+                if port_b.byte_write_enable[i] {
+                    mem[port_b.address][(i * COL_WIDTH)+:COL_WIDTH] = port_b.write_data[(i * COL_WIDTH)+:COL_WIDTH];
                 }
             }
-            read_data_b = mem[address_b];
+            port_b.read_data = mem[port_b.address];
         }
     }
 }
