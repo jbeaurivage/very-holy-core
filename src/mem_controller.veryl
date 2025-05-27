@@ -5,7 +5,6 @@
 ///
 /// Timing
 /// BRAM has a 1-cycle read and write latencies.
-/// read_valid will be asserted when a read is valid.
 module MemoryController #(
     param INIT_FILE: string = "",
     /// Number of words
@@ -33,7 +32,7 @@ module MemoryController #(
     // Inhibit misaligned requests
     let allow: bool = address[1:0] == 0;
 
-    inst port       : BramPort #( ADDR_WIDTH, NUM_COL, COL_WIDTH );
+    inst port       : MemoryBus #( ADDR_WIDTH, NUM_COL, COL_WIDTH );
     assign port.enable = allow;
     /* verilator lint_off WIDTHTRUNC */
     assign port.address = aligned_address;

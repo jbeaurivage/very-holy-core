@@ -13,9 +13,9 @@ pub module SinglePortBlockRam #(
     param RAM_DEPTH : u32 = 1024             ,
     param ADDR_WIDTH: u32 = $clog2(RAM_DEPTH),
 ) (
-    clk  : input   clock          ,
-    rst_n: input   reset_async_low,
-    port : modport BramPort::slave,
+    clk  : input   clock           ,
+    rst_n: input   reset_async_low ,
+    port : modport MemoryBus::slave,
 ) {
     const DATA_WIDTH: u8                            = NUM_COL * COL_WIDTH;
     var mem       : logic<DATA_WIDTH> [RAM_DEPTH];

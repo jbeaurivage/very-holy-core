@@ -17,8 +17,8 @@ pub module DualPortBlockRam #(
 ) (
     clk: input clock,
 
-    port_a: modport BramPort::slave,
-    port_b: modport BramPort::slave,
+    port_a: modport MemoryBus::slave,
+    port_b: modport MemoryBus::slave,
 ) {
     const DATA_WIDTH: u8                            = NUM_COL * COL_WIDTH;
     var mem       : logic<DATA_WIDTH> [RAM_DEPTH];

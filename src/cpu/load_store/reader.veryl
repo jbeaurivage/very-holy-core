@@ -31,51 +31,50 @@ module Reader (
     }
 
     // Shift data
-    always_comb {
-        case f3 {
-            // Masked data is full word in this case
-            LoadStoreFunct3::word: raw_data = masked_data;
-            // LB, LBU
-            LoadStoreFunct3::byte, LoadStoreFunct3::byte_u: {
-                case be_mask {
-                    4'b0001: raw_data = masked_data;
-                    4'b0010: raw_data = masked_data >> 8;
-                    4'b0100: raw_data = masked_data >> 16;
-                    4'b1000: raw_data = masked_data >> 24;
+    assign raw_data = case f3 {
+        // Masked data is full word in this case
+        LoadStoreFunct3::word: masked_data,
+        // LB, LBU
+        LoadStoreFunct3::byte, LoadStoreFunct3::byte_u: {
+            case be_mask {
+                4'b0001: masked_data,
+                4'b0010: masked_data >> 8,
+                4'b0100: masked_data >> 16,
+                4'b1000: masked_data >> 24,
 
-                    default: raw_data = 0;
-                }
+                default: 0,
             }
+        },
 
 
-            // LH, LHU
-            LoadStoreFunct3::halfword, LoadStoreFunct3::halfword_u: {
-                case be_mask {
-                    4'b0011: raw_data = masked_data;
-                    4'b1100: raw_data = masked_data >> 16;
+        // LH, LHU
+        LoadStoreFunct3::halfword, LoadStoreFunct3::halfword_u: {
+            case be_mask {
+                4'b0011: masked_data,
+                4'b1100: masked_data >> 16,
 
-                    default: raw_data = 0;
-                }
+                default: 0,
             }
+        },
 
-            default: raw_data = 0;
-        }
-    }
+        default: 0,
+    };
+
 
     // Sign extend logic
-    always_comb {
-        case f3 {
-            LoadStoreFunct3::word: wb_data = raw_data;
+    assign wb_data = case f3 {
+        LoadStoreFunct3::word: raw_data,
 
-            // LB, LBU
-            LoadStoreFunct3::byte, LoadStoreFunct3::byte_u: wb_data = if sign_extend ? {raw_data[7] repeat 24, raw_data[7:0]} : raw_data;
+        // LB, LBU
+        LoadStoreFunct3::byte, LoadStoreFunct3::byte_u: if sign_extend ? {raw_data[7] repeat 24, raw_data[7:0]} : raw_data,
 
-            // LH, LHU
-            LoadStoreFunct3::halfword, LoadStoreFunct3::halfword_u: wb_data = if sign_extend ? {raw_data[15] repeat 16, raw_data[15:0]} : raw_data;
+        // LH, LHU
+        LoadStoreFunct3::halfword, LoadStoreFunct3::halfword_u: if sign_extend ? {raw_data[15] repeat 16, raw_data[15:0]} : raw_data,
 
-            default: wb_data = 0;
-        }
+        default: 0,
+    };
 
-        valid = |be_mask;
-    }
+    // At least one byte must have been enabled in the byte enable mask
+    assign valid = |be_mask;
+
 }

@@ -1,4 +1,4 @@
-interface BramPort #(
+interface MemoryBus #(
     param COL_WIDTH : u8  = 8 ,
     param NUM_COL   : u8  = 4 ,
     param ADDR_WIDTH: u32 = 32,

@@ -8,9 +8,9 @@ module au_top (
     usb_tx: output logic,
 
 ) {
-    var sysclk       : logic;
-    var clk_locked   : bool ;
-    let clock_gen_rst: logic = rst_n;
+    // var sysclk       : logic;
+    // var clk_locked   : bool ;
+    // let clock_gen_rst: logic = rst_n;
 
     // inst clk_gen: $sv::clk_wiz_0 (
     //     clk_in1: clk          ,

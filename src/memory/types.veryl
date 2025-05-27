@@ -1,0 +1,55 @@
+pub proto package MemRegion {
+    /// Address width
+    const ADDR_WIDTH: u32;
+    /// Data width
+    const DATA_WIDTH: u32;
+    /// Number of bytes in a word
+    const NUM_COL: u8;
+    /// Region size in bytes
+    const SIZE: u32;
+    /// Region start address
+    const START_ADDR: u32;
+    /// Is the memory writeable or read-only?
+    const WRITEABLE: bool;
+    /// Initialization file
+    const INIT_FILE: string;
+
+}
+
+pub package ROM_CONFIG for MemRegion {
+    const ADDR_WIDTH: u32    = 32;
+    const DATA_WIDTH: u32    = 32;
+    const NUM_COL   : u8     = 4;
+    const SIZE      : u32    = 1024;
+    const START_ADDR: u32    = 0;
+    const WRITEABLE : bool   = false;
+    const INIT_FILE : string = "test_imem.hex";
+}
+
+pub package RAM_CONFIG for MemRegion {
+    const ADDR_WIDTH: u32    = 32;
+    const DATA_WIDTH: u32    = 32;
+    const NUM_COL   : u8     = 4;
+    const SIZE      : u32    = 1024;
+    const START_ADDR: u32    = 32'h10000000;
+    const WRITEABLE : bool   = true;
+    const INIT_FILE : string = "";
+}
+
+pub package PERIPH_BUS_CONFIG for MemRegion {
+    const ADDR_WIDTH: u32    = 32;
+    const DATA_WIDTH: u32    = 32;
+    const NUM_COL   : u8     = 4;
+    const SIZE      : u32    = 1024;
+    const START_ADDR: u32    = 32'h80000000;
+    const WRITEABLE : bool   = true;
+    const INIT_FILE : string = "";
+}
+
+pub package memory {
+    enum Error: logic<2> {
+        ok = 2'b00,
+        alignment_error = 2'b01,
+        invalid_address = 2'b10,
+    }
+}
