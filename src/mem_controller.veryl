@@ -5,51 +5,144 @@
 ///
 /// Timing
 /// BRAM has a 1-cycle read and write latencies.
-module MemoryController #(
-    param INIT_FILE: string = "",
-    /// Number of words
-    param RAM_DEPTH: u32 = 1024,
-) (
+
+import memory::Error;
+import memory::RamSource;
+
+module MemoryController::<ROM: MemRegion, RAM: MemRegion, PERIPH: MemRegion> (
     clk  : input clock,
     rst_n: input reset,
+
     /// Memory is word-addressed. Use byte_enable to write individual bytes
-    address   : input logic<32>,
-    write_data: input logic<32>,
+    rom_address  : input  logic<32>,
+    rom_read_data: output logic<32>,
+
+    /// Memory is word-addressed. Use byte_enable to write individual bytes
+    ram_address   : input logic<32>,
+    ram_write_data: input logic<32>,
     /// Byte enable mask, for writing individual bytes from a word
-    byte_write_enable: input logic<4>,
+    ram_byte_write_enable: input  logic<4> ,
+    ram_read_data        : output logic<32>,
 
-    read_data: output logic<32>,
+    ram_error: output memory::Error,
+
+    rom_port_a : modport MemoryBus::master,
+    rom_port_b : modport MemoryBus::master,
+    ram_port   : modport MemoryBus::master,
+    periph_port: modport MemoryBus::master,
 ) {
-    const ADDR_WIDTH: u32 = $clog2(RAM_DEPTH);
-    const NUM_COL   : u8  = 4;
-    const COL_WIDTH : u8  = 8;
-
-    // Take the word-aligned part of the address
-    /* verilator lint_off WIDTHTRUNC */
-    let aligned_address: logic<30> = (address >> 2);
-    /* verilator lint_on WIDTHTRUNC */
 
     // Inhibit misaligned requests
-    let allow: bool = address[1:0] == 0;
+    let rom_aligned: bool = rom_address[1:0] == 0;
+    let ram_aligned: bool = ram_address[1:0] == 0;
 
-    inst port       : MemoryBus #( ADDR_WIDTH, NUM_COL, COL_WIDTH );
-    assign port.enable = allow;
-    /* verilator lint_off WIDTHTRUNC */
-    assign port.address = aligned_address;
-    /* verilator lint_on WIDTHTRUNC */
-    assign port.write_data        = write_data;
-    assign port.byte_write_enable = byte_write_enable;
-    assign read_data              = port.read_data;
-
-    inst ram: SinglePortBlockRam #(
-        INIT_FILE : INIT_FILE,
-        NUM_COL              ,
-        COL_WIDTH            ,
-        RAM_DEPTH            ,
-        ADDR_WIDTH           ,
-    ) (
-        clk    ,
-        rst_n  ,
-        port   ,
+    // Select to which RAM source we want to write
+    var ram_source: RamSource;
+    inst ram_source_mux: RamSourceMux::<ROM, RAM, PERIPH> (
+        address   : ram_address,
+        ram_source             ,
     );
+
+    always_comb {
+        ram_error = Error::ok;
+
+        if !ram_aligned {
+            ram_error = Error::alignment_error;
+        } else if ram_source == RamSource::invalid {
+            ram_error = Error::invalid_address;
+        }
+    }
+
+
+    // Port A is for instruction memory
+    assign rom_port_a.enable  = rom_aligned;
+    assign rom_port_a.address = (rom_address - ROM::START_ADDR) >> 2;
+    // Disallow any write in instruction mem
+    assign rom_port_a.byte_write_enable = 4'b0000;
+    assign rom_port_a.write_data        = 32'h00000000;
+    assign rom_read_data                = rom_port_a.read_data;
+
+    // Mux between imem, dmem and peripheral bus for RAM read/write requests
+    always_comb {
+        ram_port.write_data = ram_write_data;
+
+        // Disallow any write in instruction mem
+        rom_port_b.write_data        = 32'h0;
+        rom_port_b.byte_write_enable = 4'b0000;
+
+        case ram_source {
+            RamSource::data_mem: {
+                ram_port.enable            = ram_aligned;
+                ram_port.address           = (ram_address - RAM::START_ADDR) >> 2;
+                ram_port.write_data        = ram_write_data;
+                ram_port.byte_write_enable = ram_byte_write_enable;
+
+                rom_port_b.enable  = false;
+                rom_port_b.address = 0;
+
+                periph_port.enable            = false;
+                periph_port.address           = 0;
+                periph_port.write_data        = 32'h0;
+                periph_port.byte_write_enable = 4'b0000;
+            }
+            RamSource::instr_mem: {
+                ram_port.enable            = false;
+                ram_port.address           = 0;
+                ram_port.write_data        = 32'h0;
+                ram_port.byte_write_enable = 4'b0000;
+
+                rom_port_b.enable  = ram_aligned;
+                rom_port_b.address = (ram_address - ROM::START_ADDR) >> 2;
+
+                periph_port.enable            = false;
+                periph_port.address           = 0;
+                periph_port.write_data        = 32'h0;
+                periph_port.byte_write_enable = 4'b0000;
+            }
+            RamSource::peripheral: {
+                ram_port.enable            = false;
+                ram_port.address           = 0;
+                ram_port.write_data        = 32'h0;
+                ram_port.byte_write_enable = 4'b0000;
+
+                rom_port_b.enable  = false;
+                rom_port_b.address = 0;
+
+                periph_port.enable            = true;
+                periph_port.address           = (ram_address - PERIPH::START_ADDR) >> 2;
+                periph_port.write_data        = ram_write_data;
+                periph_port.byte_write_enable = ram_byte_write_enable;
+            }
+            default: {
+                ram_port.enable            = false;
+                ram_port.address           = 0;
+                ram_port.write_data        = 32'h0;
+                ram_port.byte_write_enable = 4'b0000;
+
+                rom_port_b.enable  = false;
+                rom_port_b.address = 0;
+
+                periph_port.enable            = false;
+                periph_port.address           = 0;
+                periph_port.write_data        = 0;
+                periph_port.byte_write_enable = 0;
+            }
+        }
+    }
+
+    // Mux between imem, dmem and peripheral bus for RAM read results
+    var previous_ram_address: logic    <32>;
+    var previous_ram_source : RamSource    ;
+    always_ff {
+        previous_ram_source  = ram_source;
+        previous_ram_address = ram_address;
+    }
+
+    assign ram_read_data = case previous_ram_source {
+        RamSource::data_mem  : ram_port.read_data,
+        RamSource::instr_mem : rom_port_b.read_data,
+        RamSource::peripheral: periph_port.read_data,
+        default              : 32'h0,
+    };
+
 }

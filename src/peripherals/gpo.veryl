@@ -1,0 +1,42 @@
+
+
+// General-purpose digital output driver
+module Gpo #(
+    param NUM_PINS: u16 = 8,
+) (
+    clk  : input clock,
+    rst_n: input reset,
+
+    register    : input logic<2>,
+    write_data  : input logic<8>,
+    write_enable: input bool    ,
+
+    gpo_out: output logic<NUM_PINS>,
+) {
+    enum GpoRegister: logic<2> {
+        out = 0,
+        clear = 1,
+        set = 2,
+    }
+
+    var out: logic<NUM_PINS>;
+
+    let set_value: logic<NUM_PINS> = case register {
+        GpoRegister::out  : write_data,
+        GpoRegister::clear: out & ~write_data,
+        GpoRegister::set  : out | write_data,
+        default           : out,
+    };
+
+    always_ff {
+        if_reset {
+            out = 0;
+        } else {
+            if write_enable {
+                out = set_value;
+            }
+        }
+    }
+
+    assign gpo_out = out;
+}

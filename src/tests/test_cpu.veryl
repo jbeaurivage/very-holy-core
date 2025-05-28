@@ -1,2 +1,19 @@
-#[test(test_cpu, Soc)]
+module TestSoc (
+    clk  : input clock,
+    rst_n: input reset,
+
+    led   : output logic<7>,
+    usb_rx: input  logic   ,
+    usb_tx: output logic   ,
+) {
+    inst soc: Soc::<TEST_ROM_CONFIG, TEST_RAM_CONFIG, TEST_PERIPH_BUS_CONFIG> (
+        clk     ,
+        rst_n   ,
+        led     ,
+        usb_rx  ,
+        usb_tx  ,
+    );
+}
+
+#[test(test_cpu, TestSoc)]
 include (cocotb, "../../tb/cpu.py");

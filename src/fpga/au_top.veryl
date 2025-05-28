@@ -19,7 +19,7 @@ module au_top (
     //     locked : clk_locked   ,
     // );
 
-    inst soc: Soc (
+    inst soc: Soc::<ROM_CONFIG, RAM_CONFIG, PERIPH_BUS_CONFIG> (
         clk             ,
         rst_n           ,
         led   : led[7:1],

@@ -1,0 +1,22 @@
+import memory::RamSource;
+
+module RamSourceMux::<ROM: MemRegion, RAM: MemRegion, PERIPH: MemRegion> (
+    address: input logic<32>,
+
+    ram_source: output RamSource,
+) {
+    always_comb {
+        // Silence warning that occurs when we compare address to the "0" constant
+        /* verilator lint_off UNSIGNED */
+        if address >= ROM::START_ADDR && address <: ROM::START_ADDR + ROM::SIZE {
+            ram_source = RamSource::instr_mem;
+        } else if address >= RAM::START_ADDR && address <: RAM::START_ADDR + RAM::SIZE {
+            ram_source = RamSource::data_mem;
+        } else if address >= PERIPH::START_ADDR && address <: PERIPH::START_ADDR + PERIPH::SIZE {
+            ram_source = RamSource::peripheral;
+        } else {
+            ram_source = RamSource::invalid;
+        }
+        /* verilator lint_on UNSIGNED */
+    }
+}

@@ -21,6 +21,7 @@ fmt:
 test TEST *extra_args:
 	veryl test {{justfile_directory()}}/src/tests/test_{{TEST}}.veryl \
 		{{justfile_directory()}}/src/*.veryl \
+		{{justfile_directory()}}/src/peripherals/*.veryl \
 		{{justfile_directory()}}/src/cpu/*.veryl \
 		{{justfile_directory()}}/src/memory/*.veryl \
 		{{justfile_directory()}}/src/cpu/load_store/*.veryl \

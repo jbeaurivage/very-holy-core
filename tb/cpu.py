@@ -6,6 +6,7 @@ from cocotb.triggers import RisingEdge
 # We need to embed the hex files directly in the python code due
 # to a limitation of the Veryl test runner.
 
+# Data memory is at 0x400-0x7FF
 DMEM = """
 AEAEAEAE
 00000000
@@ -19,22 +20,23 @@ F2F2F2F2
 //(...)
 """
 
+# Instruction memory is at 0x000-0x3FF
 IMEM = """
-00802903  //LW  TEST START :    lw x18 0x8(x0)      | x18 <= DEADBEEF
-01202623  //SW  TEST START :    sw x18 0xC(x0)      | 0xC <= DEADBEEF
-01002983  //ADD TEST START :    lw x19 0x10(x0)     | x19 <= 00000AAA
+40802903  //LW  TEST START :    lw x18 0x408(x0)    | x18 <= DEADBEEF
+41202623  //SW  TEST START :    sw x18 0x40C(x0)    | mem @ 0x40C <= DEADBEEF
+41002983  //ADD TEST START :    lw x19 0x410(x0)    | x19 <= 00000AAA
 01390A33  //                    add x20 x18 x19     | x20 <= DEADC999
 01497AB3  //AND TEST START :    and x21 x18 x20     | x21 <= DEAD8889
-01402283  //OR  TEST START :    lw x5 0x14(x0)      | x5  <= 125F552D
-01802303  //                    lw x6 0x18(x0)      | x6  <= 7F4FD46A
+41402283  //OR  TEST START :    lw x5 0x414(x0)     | x5  <= 125F552D
+41802303  //                    lw x6 0x418(x0)     | x6  <= 7F4FD46A
 0062E3B3  //                    or x7 x5 x6         | x7  <= 7F5FD56F
 00730663  //BEQ TEST START :    beq x6 x7 0xC       | #1 SHOULD NOT BRANCH
-00802B03  //                    lw x22 0x8(x0)      | x22 <= DEADBEEF
+40802B03  //                    lw x22 0x408(x0)    | x22 <= DEADBEEF
 01690863  //                    beq x18 x22 0x10    | #2 SHOULD BRANCH
 00000013  //                    nop                 | NEVER EXECUTED
 00000013  //                    nop                 | NEVER EXECUTED
 00000663  //                    beq x0 x0 0xC       | #4 SHOULD BRANCH
-00002B03  //                    lw x22 0x0(x0)      | x22 <= AEAEAEAE 
+40002B03  //                    lw x22 0x400(x0)    | x22 <= AEAEAEAE 
 FF6B0CE3  //                    beq x22 x22 -0x8    | #3 SHOULD BRANCH 
 00000013  //                    nop                 | FINAL NOP
 00C000EF  //JAL TEST START :    jal x1 0xC          | #1 jump @PC+0xC
@@ -42,7 +44,7 @@ FF6B0CE3  //                    beq x22 x22 -0x8    | #3 SHOULD BRANCH
 00C000EF  //                    jal x1 0xC          | #2 jump @PC-0x4    
 FFDFF0EF  //                    jal x1 0x-4         | #2 jump @PC-0x4
 00000013  //                    nop                 | NEVER EXECUTED
-00C02383  //                    lw x7 0xC(x0)       | x7 <= DEADBEEF     
+40C02383  //                    lw x7 0x40C(x0)     | x7 <= DEADBEEF     
 1AB38D13  //ADDI TEST START :   addi x26 x7 0x1AB   | x26 <= DEADC09A
 F2130C93  //                    addi x25 x6 0xF21   | x25 <= DEADBE10
 1F1FA297  //AUIPC TEST START :  auipc x5 0x1F1FA    | x5 <= 1F1FA064   PC 0x64
@@ -91,12 +93,12 @@ FFFAF993  //                    andi x19 x21 0xFFF  | x19 <= FFFFFEEF
 01438393  //                    addi x7 x7 0x10     | x7 <= 00000120                PC = 0x110
 FFC380E7  //                    jalr x1  -4(x7)     | x1 <= 00000118, go @PC 0x11C  PC = 0x114
 00C00413  //                    addi x8 x0 0xC      | NEVER EXECUTED (check value)  PC = 0x118
-008020A3  //SB TEST START :     sw x8 0x1(x0)       | NO WRITE ! (mis-aligned !)    PC = 0x11C
-00800323  //                    sb x8 0x6(x0)       | mem @ 0x4 <= 00EE0000         PC = 0x120
-008010A3  //SH TEST START :     sh x8 1(x0)         | NO WRITE ! (mis-aligned !)
-008011A3  //                    sh x8 3(x0)         | NO WRITE ! (mis-aligned !)
-00801323  //                    sh x8 6(x0)         | mem @ 0x4 <= FFEE0000
-01000393  //LB TEST START :     addi x7 x0 0x10     | x7 <= 00000010 (base address fot test)
+408020A3  //SB TEST START :     sw x8 0x401(x0)     | NO WRITE ! (mis-aligned !)    PC = 0x11C
+40800323  //                    sb x8 0x406(x0)     | mem @ 0x404 <= 00EE0000         PC = 0x120
+408010A3  //SH TEST START :     sh x8 0x401(x0)     | NO WRITE ! (mis-aligned !)
+408011A3  //                    sh x8 0x403(x0)     | NO WRITE ! (mis-aligned !)
+40801323  //                    sh x8 0x406(x0)     | mem @ 0x404 <= FFEE0000
+41000393  //LB TEST START :     addi x7 x0 0x410    | x7 <= 00000410 (base address fot test)
 FFF3A903  //                    lw x18 -1(x7)       | NO WRITE IN REGISTER ! (not valid)
 FFF38903  //                    lb x18 -1(x7)       | x18 <= FFFFFFDE
 FFD3C983  //LBU TEST START :    lbu x19 -3(x7)      | x19 <= 000000BE 
@@ -105,8 +107,16 @@ FFA39A03  //                    lh x20 -6(x7)       | x20 <= FFFFDEAD
 FFD3DA83  //LHU TEST START :    lhu x21 -3(x7)      | NO WRITE IN REGISTER !
 FFA3DA83  //                    lhu x21 -6(x7)      | x21 <= 0000DEAD
 10000193  // READ-WRITE TEST:   addi x3, x0, 256    | x3 <= 256
-00302423  //                    sw x3, 0x8(x0)      | 0x8 <= 256
-00802203  //                    lw x4, 0x8(x0)      | x4 <= 256
+50000393  //                    addi x7, x0, 0x500  | x7 <= 0x500
+0033A423  //                    sw x3, 0x8(x7)      | mem @ 0x508 <= 256
+0083A203  //                    lw x4, 0x8(x7)      | x4 <= 256
+800003b7  // LED DRIVER TEST:   lui x7, 0x80000     | x7 <= 0x8000000
+0ff00193  //                    addi x3, x0, 0xFF   | x3 <= 0xFF
+00338023  //                    sb x3, 0(x7)        | All LEDs should turn on
+00800213  //                    addi x4, x0, 0x8    | x4 <= 0x8
+004380A3  //                    sb x4, 1(x7)        | LED 3 should turn off
+003380A3  //                    sb x3, 1(x7)        | All LEDs should turn off
+00438123  //                    sb x4, 2(x7)        | LED 3 should turn on
 00000013  //NOP
 00000013  //NOP
 00000013  //NOP
@@ -138,8 +148,10 @@ def assert_reg_contents(dut, reg, expected):
     assert expected == reg_value, f'Expected {expected:8x} at register {reg}, got {binary_to_hex(reg_value)}'
 
 def assert_dmem(dmem, address, expected):
+    # Offset the address
     # mem is byte adressed but is made out of words in the eyes of the software
-    mem_value = dmem.ram.mem[int(address/4)].value
+    word_idx = int((address - 0x400) / 4)
+    mem_value = dmem.mem[word_idx].value
     assert expected == mem_value, f'Expected {expected:8x} at address {address}, got {binary_to_hex(mem_value)}'
 
 
@@ -166,7 +178,7 @@ async def cpu_reset(dut):
     # Wait for a clock edge after reset
     await RisingEdge(dut.clk)
     # Wait another cycle to allow the instruction fetch to propagate
-    await RisingEdge(dut.cpu.clk)
+    await RisingEdge(dut.clk)
 
 @cocotb.coroutine
 async def init_memory(mem, hexfile):
@@ -182,40 +194,40 @@ async def init_memory(mem, hexfile):
     
 @cocotb.test()
 async def cpu_integration_test(dut):
-    """Runs a lw+sw datapath test"""
-    imem = dut.instruction_memory
-    dmem = dut.data_memory
-    cpu = dut.cpu
-
     cocotb.start_soon(Clock(dut.clk, 1, units="ns").start())
+
+    imem = dut.soc.rom
+    dmem = dut.soc.ram
+    cpu = dut.soc.cpu
+    
     await RisingEdge(dut.clk)
 
     # Just like in real HW, memory isn't reset to 0 when the system is reset.
-    await init_memory(imem.ram.mem, IMEM)
-    await init_memory(dmem.ram.mem, DMEM)
+    await init_memory(imem.mem, IMEM)
+    await init_memory(dmem.mem, DMEM)
 
     # Reset CPU
     await cpu_reset(dut)
+    print("cpu reset")
 
     # Check that the instruction mem loaded correctly
-    assert binary_to_hex(imem.ram.mem[0].value) == "00802903"
+    assert binary_to_hex(imem.mem[0].value) == "40802903"
 
     assert binary_to_hex(cpu.pc.value) == "00000000"
-    assert binary_to_hex(cpu.instruction.value) == "00802903"
+    assert binary_to_hex(cpu.instruction.value) == "40802903"
 
     # Check that the data mem loaded correctly
-    assert_dmem(dmem, 0, 0xAEAEAEAE)
-    assert_dmem(dmem, 8, 0xDEADBEEF)
-
+    assert_dmem(dmem, 0x400, 0xAEAEAEAE)
+    assert_dmem(dmem, 0x408, 0xDEADBEEF)
 
     ##################
     # LOAD WORD TEST 
-    # lw x18 0x8(x0)
+    # lw x18 0x408(x0)
     ##################
     print("\n\nTESTING LW\n\n")
 
     # The first instruction for the test in imem.hex load the data from
-    # dmem @ adress 0x00000008 that happens to be 0xDEADBEEF into register x18
+    # dmem @ adress 0x00000408 that happens to be 0xDEADBEEF into register x18
  
     # Let instruction execute
     await RisingEdge(cpu.clk)
@@ -224,46 +236,46 @@ async def cpu_integration_test(dut):
 
     ##################
     # STORE WORD TEST 
-    # sw x18 0xC(x0)
+    # sw x18 0x40C(x0)
     ##################
     print("\n\nTESTING SW\n\n")
-    test_address = 0xC
+    test_address = 0x40C
     # The second instruction for the test in imem.hex stores the data from
-    # x18 (that happens to be 0xDEADBEEF from the previous LW test) @ adress 0x0000000C 
+    # x18 (that happens to be 0xDEADBEEF from the previous LW test) @ adress 0x0000040C 
 
     # First, let's check the inital value
     assert_dmem(dmem, test_address, 0xF2F2F2F2)
     # Make sure we're still synchronized
     assert cpu.pc.value == 0x4
-    assert cpu.instruction.value == 0x01202623
+    assert cpu.instruction.value == 0x41202623
     # Check that we're using the right operand, which has just been loaded from memory
     # (but is not yet written to the regfile)
    
-    assert cpu.dmem_write_data == 0xDEADBEEF
+    assert cpu.dmem_write_data.value == 0xDEADBEEF
 
-    # Execute sw x18 0xC(x0)
+    # Execute sw x18 0x40C(x0)
     await RisingEdge(cpu.clk)
     # Check the value of x18, which was written by lw op from the last cycle
     assert_reg_contents(cpu, 18, 0xDEADBEEF)
-    # The value of mem[0xC] will propagate to memory in the next cycle
+    # The value of mem[0x40C] will propagate to memory in the next cycle
     # assert binary_to_hex(dut.data_memory.ram.mem[test_address].value) == "DEADBEEF"
 
     ##################
     # ADD TEST
-    # lw x19 0x10(x0) (this memory spot contains 0x00000AAA)
+    # lw x19 0x410(x0) (this memory spot contains 0x00000AAA)
     # add x20 x18 x19
     ##################
 
     # Expected result of x18 + x19
     expected_result = (0xDEADBEEF + 0x00000AAA) & 0xFFFFFFFF
-    assert_dmem(dmem, 0x10, 0x00000AAA)
+    assert_dmem(dmem, 0x410, 0x00000AAA)
 
     assert Writeback(cpu.next_writeback.value).dest_reg == 19
 
-    # Execute lw x19 0x10(x0)
+    # Execute lw x19 0x410(x0)
     await RisingEdge(cpu.clk)
 
-    # Check the value of mem[0xC], which was written by sw op from the last cycle
+    # Check the value of mem[0x40C], which was written by sw op from the last cycle
     assert_dmem(dmem, test_address, 0xDEADBEEF)
     
     # The read result will propagate to x19 in the next cycle.
@@ -273,7 +285,7 @@ async def cpu_integration_test(dut):
     # Execute add x20 x18 x19
     await RisingEdge(cpu.clk)
 
-    # Result of lw x19 0x10(x0) has just propagated to register
+    # Result of lw x19 0x410(x0) has just propagated to register
     assert_reg_contents(cpu, 19, 0x00000AAA)
 
     ##################
@@ -290,8 +302,8 @@ async def cpu_integration_test(dut):
 
     ##################
     # OR TEST
-    # lw x5 0x14(x0) | x5 <- 125F552D
-    # lw x6 0x18(x0) | x6 <- 7F4FD46A
+    # lw x5 0x414(x0) | x5 <- 125F552D
+    # lw x6 0x418(x0) | x6 <- 7F4FD46A
     # or x7 x5 x6    | x7 <- 7F5FD56F
     ##################
     print("\n\nTESTING OR\n\n")
@@ -314,12 +326,12 @@ async def cpu_integration_test(dut):
     ##################
     # BEQ TEST
     # 00730663  //BEQ TEST START :    beq x6 x7 0xC       | #1 SHOULD NOT BRANCH
-    # 00802B03  //                    lw x22 0x8(x0)      | x22 <= DEADBEEF
+    # 40802B03  //                    lw x22 0x408(x0)    | x22 <= DEADBEEF
     # 01690863  //                    beq x18 x22 0x10    | #2 SHOULD BRANCH (+ offset)
     # 00000013  //                    nop                 | NEVER EXECUTED
     # 00000013  //                    nop                 | NEVER EXECUTED
     # 00000663  //                    beq x0 x0 0xC       | #4 SHOULD BRANCH (avoid loop)
-    # 00002B03  //                    lw x22 0x0(x0)      | x22 <= AEAEAEAE
+    # 40002B03  //                    lw x22 0x400(x0)    | x22 <= AEAEAEAE
     # FF6B0CE3  //                    beq x22 x22 -0x8    | #3 SHOULD BRANCH (-offset)
     # 00000013  //                    nop                 | FINAL NOP
     ##################
@@ -329,9 +341,9 @@ async def cpu_integration_test(dut):
 
     await RisingEdge(cpu.clk) # beq x6 x7 0xC NOT TAKEN
     # Check if the current instruction is the one we expected
-    assert binary_to_hex(cpu.instruction.value) == "00802B03"
+    assert binary_to_hex(cpu.instruction.value) == "40802B03"
 
-    # Execute lw x22 0x8(x0)
+    # Execute lw x22 0x408(x0)
     await RisingEdge(cpu.clk)
 
     # The read result will propagate to x22 in the next cycle.
@@ -342,11 +354,11 @@ async def cpu_integration_test(dut):
     await RisingEdge(cpu.clk)
 
     # Check if the current instruction is the one we expected
-    assert binary_to_hex(cpu.instruction.value) == "00002B03"
-    # Check that lw x22 0x8(x0) has propagated to the regfile
+    assert binary_to_hex(cpu.instruction.value) == "40002B03"
+    # Check that lw x22 0x408(x0) has propagated to the regfile
     assert_reg_contents(cpu, 22, 0xDEADBEEF)
 
-    # Execute lw x22 0x0(x0)
+    # Execute lw x22 0x400(x0)
     await RisingEdge(cpu.clk)
 
     assert Writeback(cpu.writeback.value).dest_reg == 22
@@ -371,7 +383,7 @@ async def cpu_integration_test(dut):
     # 00C000EF  //                    jal x1 0xC          | #2 jump @PC-0x4 | PC 0x4C   
     # FFDFF0EF  //                    jal x1 -4           | #2 jump @PC-0x4 | PC 0x50
     # 00000013  //                    nop                 | NEVER EXECUTED  | PC 0x54
-    # 00C02383  //                    lw x7 0xC(x0)       | x7 <= DEADBEEF  | PC 0x58
+    # 40C02383  //                    lw x7 0x40C(x0)     | x7 <= DEADBEEF  | PC 0x58
     ##################
     print("\n\nTESTING JAL\n\n")
 
@@ -401,7 +413,7 @@ async def cpu_integration_test(dut):
 
     assert_wb(cpu.writeback, 1, 0x00000050) # stored old pc + 4
     # Check new state & ra (x1) register value
-    assert binary_to_hex(cpu.instruction.value) == "00C02383"
+    assert binary_to_hex(cpu.instruction.value) == "40C02383"
     assert binary_to_hex(cpu.pc.value) == "00000058"
 
     # Execute lw x7 0xC(x0)
@@ -840,54 +852,54 @@ async def cpu_integration_test(dut):
     assert binary_to_hex(cpu.pc.value) == "0000011C"
 
     ################
-    # 008020A3  //SB TEST START :     sw x8 0x1(x0)       | NO WRITE ! (mis-aligned !)
-    # 00800323  //                    sb x8 0x6(x0)       | mem @ 0x4 <= 00EE0000
+    # 408020a3  //SB TEST START :     sw x8 0x401(x0)     | NO WRITE ! (mis-aligned !)
+    # 40800323  //                    sb x8 0x406(x0)     | mem @ 0x404 <= 00EE0000
     ##################
     print("\n\nTESTING SB\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "008020A3"
+    assert binary_to_hex(cpu.instruction.value) == "408020A3"
     # Check initial state, data will propagate to memory on next cycle
-    assert_dmem(dmem, 0x4, 0x00000000)
+    assert_dmem(dmem, 0x404, 0x00000000)
 
-    await RisingEdge(cpu.clk) # sw x8 0x1(x0)
+    await RisingEdge(cpu.clk) # sw x8 0x401(x0)
    
-    # Verify that 0x4 remains UNFAZED by sw x8 1(x0)
-    assert_dmem(dmem, 4, 0x00000000)
+    # Verify that 0x404 remains UNFAZED by sw x8 401(x0)
+    assert_dmem(dmem, 0x404, 0x00000000)
 
-    await RisingEdge(cpu.clk) # sb x8 0x6(x0)
+    await RisingEdge(cpu.clk) # sb x8 0x406(x0)
 
-    # Verify that the 2nd byte in 0x4 (address 1, LE) get set by sw x8 1(x0)
-    assert_dmem(dmem, 4, 0x00EE0000)
+    # Verify that the 2nd byte in 0x404 (address 1, LE) get set by sw x8 401(x0)
+    assert_dmem(dmem, 0x404, 0x00EE0000)
 
     #################
-    # 008010A3  //SH TEST START :     sh x8 1(x0)         | NO WRITE ! (mis-aligned !)
-    # 008011A3  //                    sh x8 3(x0)         | NO WRITE ! (mis-aligned !)
-    # 00801323  //                    sh x8 6(x0)         | mem @ 0x4 <= FFEE0000    
+    # 408010A3  //SH TEST START :     sh x8 0x401(x0)       | NO WRITE ! (mis-aligned !)
+    # 408011A3  //                    sh x8 0x403(x0)       | NO WRITE ! (mis-aligned !)
+    # 40801323  //                    sh x8 0x406(x0)       | mem @ 0x404 <= FFEE0000    
     ##################
     print("\n\nTESTING SH\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "008010A3"
+    assert binary_to_hex(cpu.instruction.value) == "408010A3"
 
-    await RisingEdge(cpu.clk) # sh x8 1(x0)
+    await RisingEdge(cpu.clk) # sh x8 0x401(x0)
 
-   # Verify that 0x4 remains UNFAZED by sh x8 1(x0)
-    assert_dmem(dmem, 4, 0x00EE0000)
+   # Verify that 0x404 remains UNFAZED by sh x8 1(x0)
+    assert_dmem(dmem, 0x404, 0x00EE0000)
 
 
-    await RisingEdge(cpu.clk) # sh x8 3(x0)
+    await RisingEdge(cpu.clk) # sh x8 0x403(x0)
 
-    # Verify that 0x4 remains UNFAZED by sh x3 1(x0)
-    assert_dmem(dmem, 4, 0x00EE0000)
+    # Verify that 0x404 remains UNFAZED by sh x3 0x401(x0)
+    assert_dmem(dmem, 0x404, 0x00EE0000)
 
-    await RisingEdge(cpu.clk) # sh x8 6(x0)
-    # Verify that write propagates to 0x4
-    assert_dmem(dmem, 4, 0xFFEE0000)
+    await RisingEdge(cpu.clk) # sh x8 0x406(x0)
+    # Verify that write propagates to 0x404
+    assert_dmem(dmem, 0x404, 0xFFEE0000)
 
     #################
     # PARTIAL LOADS
-    # 01000393  //LB TEST START :     addi x7 x0 0x10  
+    # 41000393  //LB TEST START :     addi x7 x0 0x410  
     # FFF3A903  //                    lw x18 -1(x7) NO READ! (misaligned!)
     # FFF38903  //                    lb x18 -1(x7)
     # FFD3C983  //LBU TEST START :    lbu x19 -3(x7)
@@ -899,18 +911,18 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING LB\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "01000393"
+    assert binary_to_hex(cpu.instruction.value) == "41000393"
 
-    await RisingEdge(cpu.clk) # addi x7 x0 0x10 
-    assert_wb(cpu.writeback, 7, 0x00000010)
+    await RisingEdge(cpu.clk) # addi x7 x0 0x410 
+    assert_wb(cpu.writeback, 7, 0x00000410)
     assert_reg_contents(cpu, 18, 0xFFF8FF00)
 
     await RisingEdge(cpu.clk) # lw x18 -1(x7)
 
     # Check initial state
     assert_reg_contents(cpu, 18, 0xFFF8FF00)
-    # Check that addi x7, x0, 0x10 propagated to x7
-    assert_reg_contents(cpu, 7, 0x00000010)
+    # Check that addi x7, x0, 0x410 propagated to x7
+    assert_reg_contents(cpu, 7, 0x00000410)
 
     # lw x18, -1(x7) is misaligned, should not write back
     assert not cpu.writeback_enable.value
@@ -967,17 +979,21 @@ async def cpu_integration_test(dut):
 
     # addi x3, x0, 256
     await RisingEdge(cpu.clk)
-    assert_wb(cpu.writeback, 3,0x00000100)
+    assert_wb(cpu.writeback, 3, 0x00000100)
 
-    # sw x3, 0x8(x0)      | 0x8 <= 256
+    # addi x7, x0, 0x500
+    await RisingEdge(cpu.clk)
+    assert_wb(cpu.writeback, 7, 0x500)
+
+    # sw x3, 0x8(x7)      | 0x8 <= 256
     await RisingEdge(cpu.clk)
 
     # Check that addi x3, x0, 256 has propagated to regfile
     assert_reg_contents(cpu, 3, 0x00000100)
     # Check that the data has propagated to memory
-    assert_dmem(dmem, 0x8, 0x00000100)
+    assert_dmem(dmem, 0x508, 0x00000100)
 
-    # lw x4, 0x8(x0)      | x4 <= 256
+    # lw x4, 0x8(x7)      | x4 <= 256
     await RisingEdge(cpu.clk)
 
     wb = Writeback(cpu.writeback.value)
@@ -986,9 +1002,44 @@ async def cpu_integration_test(dut):
     assert wb.dest_reg == 4
     assert cpu.writeback_data.value == 0x00000100
 
+    ################################
+    # 800003b7  // LED DRIVER TEST:   lui x7, 0x80000     | x7 <= 0x8000000
+    # 0ff00193  //                    addi x3, x0, 0xFF   | x3 <= 0xFF
+    # 00338023  //                    sb x3, 0(x7)        | All LEDs should turn on
+    # 00800213  //                    addi x4, x0, 0x8    | x4 <= 0x8
+    # 004380A3  //                    sb x4, 1(x7)        | LED 3 should turn off
+    # 003380A3  //                    sb x3, 1(x7)        | All LEDs should turn off
+    # 00438123  //                    sb x4, 2(x7)        | LED 3 should turn on
+    ################################
+
+    # lui x7, 0x200       | x7 <= 0x8000000
     await RisingEdge(cpu.clk)
 
     # Finally, check that the read has propagated to regfile
     assert_reg_contents(cpu, 4, 0x00000100)
+
+    # Check that lui x7, 0x200 has propagated to regfile
+
+    # addi x3, x0, 0xFF   | x3 <= 0xFF
+    await RisingEdge(cpu.clk)
+    assert_reg_contents(cpu, 7, 0x80000000)
+
+    # sb x3, 0(x7)        | All LEDs should turn on
+    await RisingEdge(cpu.clk)
+
+    # addi x4, x0, 0x8    | x4 <= 0x8
+    await RisingEdge(cpu.clk)
+    
+    # sb x4, 1(x7)        | LED 3 should turn off
+    await RisingEdge(cpu.clk)
+
+    # sb x3, 1(x7)        | All LEDs should turn off
+    await RisingEdge(cpu.clk)
+
+    # sb x4, 2(x7)        | LED 3 should turn on
+    await RisingEdge(cpu.clk)
+    await RisingEdge(cpu.clk)
+    await RisingEdge(cpu.clk)
+    await RisingEdge(cpu.clk)
 
     print("All tests passed! 👍Very nice!👍")

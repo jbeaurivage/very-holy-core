@@ -1,2 +1,82 @@
-#[test(test_memory, MemoryController)]
-include (cocotb, "../../tb/memory.py");
+// module TestMemoryController (
+//     clk  : input clock,
+//     rst_n: input reset,
+
+//     /// Memory is word-addressed. Use byte_enable to write individual bytes
+//     rom_address  : input  logic<32>,
+//     rom_read_data: output logic<32>,
+
+//     /// Memory is word-addressed. Use byte_enable to write individual bytes
+//     ram_address   : input logic<32>,
+//     ram_write_data: input logic<32>,
+//     /// Byte enable mask, for writing individual bytes from a word
+//     ram_byte_write_enable: input  logic<4> ,
+//     ram_read_data        : output logic<32>,
+
+//     ram_error: output memory::Error,
+// ) {
+//     // Port A is for instruction memory
+//     inst rom_port_a: MemoryBus #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
+
+//     // Port B is to allow reads to imem from RAM
+//     // using regular data memory instructions
+//     inst rom_port_b: MemoryBus #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
+
+//     inst ram_port: MemoryBus #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
+
+//     // The fetched instruction we will decode and execute.
+//     var instruction: logic<32>;
+//     var imem_addr  : logic<32>;
+
+//     // Instruction memory. Acts as a ROM.
+//     inst rom: DualPortBlockRam #(
+//         INIT_FILE : TEST_ROM::INIT_FILE ,
+//         NUM_COL                    ,
+//         COL_WIDTH                  ,
+//         RAM_DEPTH : TEST_ROM::SIZE / 4  ,
+//         ADDR_WIDTH: TEST_ROM::ADDR_WIDTH,
+//     ) (
+//         clk  ,
+
+//         port_a: rom_port_a,
+//         port_b: rom_port_b,
+//     );
+
+//     var dmem_addr             : logic<32>;
+//     var dmem_write_data       : logic<32>;
+//     var dmem_byte_write_enable: logic<4> ;
+//     var dmem_read_data        : logic<32>;
+
+//     // Data memory. Acts as a RAM.
+//     inst ram: SinglePortBlockRam #(
+//         INIT_FILE : TEST_RAM::INIT_FILE ,
+//         NUM_COL                    ,
+//         COL_WIDTH                  ,
+//         RAM_DEPTH : TEST_RAM::SIZE / 4  ,
+//         ADDR_WIDTH: TEST_RAM::ADDR_WIDTH,
+//     ) (
+//         clk    ,
+//         rst_n  ,
+
+//         port: ram_port,
+//     );
+
+//     inst mem_controller: MemoryController::<TEST_ROM_CONFIG, TEST_RAM_CONFIG, TEST_PERIPH_BUS_CONFIG> (
+//         clk                    ,
+//         rst_n                  ,
+//         rom_address            ,
+//         rom_read_data          ,
+//         ram_address            ,
+//         ram_write_data         ,
+//         ram_byte_write_enable  ,
+//         ram_read_data          ,
+//         ram_error              ,
+//         rom_port_a             ,
+//         rom_port_b             ,
+//         ram_port               ,
+//     );
+// }
+
+// #[test(test_memory, MemoryController)]
+// include (cocotb, "../../tb/mem_controller.py");
+

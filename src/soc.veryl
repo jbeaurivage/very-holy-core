@@ -1,4 +1,4 @@
-module Soc (
+module Soc::<ROM: MemRegion, RAM: MemRegion, PERIPH: MemRegion> (
     clk  : input clock,
     rst_n: input reset,
 
@@ -7,19 +7,9 @@ module Soc (
     usb_tx: output logic   ,
 ) {
 
-    // Activity LED
-    // All this is to keep synthesis from optimizing design out
-    var tick: bool;
     always_ff {
         if_reset {
-            tick     = false;
-            led[6:1] = 6'b000000;
-            usb_tx   = 0;
-        } else {
-            tick   = !tick;
-            led[6] = tick;
-            led[0] = if instruction == 32'h00000013 ? 1 : 0;
-
+            usb_tx = 0;
         }
     }
 
@@ -34,28 +24,39 @@ module Soc (
         dmem_read_data          ,
         dmem_write_data         ,
         dmem_byte_write_enable  ,
-
     );
 
-    // Instruction memory
-    // Acts as a ROM.
+    const COL_WIDTH: u8 = 8;
+    const NUM_COL  : u8 = 4;
+
+
+    // Port A is for instruction memory
+    inst rom_port_a: MemoryBus #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
+
+    // Port B is to allow reads to imem from RAM
+    // using regular data memory instructions
+    inst rom_port_b: MemoryBus #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
+
+    inst ram_port: MemoryBus #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
+
+    inst periph_port: MemoryBus #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
 
     // The fetched instruction we will decode and execute.
     var instruction: logic<32>;
     var imem_addr  : logic<32>;
 
-    inst instruction_memory: MemoryController #(
-        RAM_DEPTH: 1024           ,
-        INIT_FILE: "test_imem.hex",
+    // Instruction memory. Acts as a ROM.
+    inst rom: DualPortBlockRam #(
+        INIT_FILE : ROM::INIT_FILE ,
+        NUM_COL                    ,
+        COL_WIDTH                  ,
+        RAM_DEPTH : ROM::SIZE / 4  ,
+        ADDR_WIDTH: ROM::ADDR_WIDTH,
     ) (
-        clk               ,
-        rst_n             ,
-        address: imem_addr,
-        // Disallow any write in instruction mem
-        byte_write_enable: 4'b0000     ,
-        write_data       : 32'hxxxxxxxx,
+        clk  ,
 
-        read_data: instruction,
+        port_a: rom_port_a,
+        port_b: rom_port_b,
     );
 
     var dmem_addr             : logic<32>;
@@ -63,15 +64,82 @@ module Soc (
     var dmem_byte_write_enable: logic<4> ;
     var dmem_read_data        : logic<32>;
 
-    // Data memory
-    inst data_memory: MemoryController #(
-        RAM_DEPTH: 1024,
+    // Data memory. Acts as a RAM.
+    inst ram: SinglePortBlockRam #(
+        INIT_FILE : RAM::INIT_FILE ,
+        NUM_COL                    ,
+        COL_WIDTH                  ,
+        RAM_DEPTH : RAM::SIZE / 4  ,
+        ADDR_WIDTH: RAM::ADDR_WIDTH,
     ) (
-        clk                                      ,
-        rst_n                                    ,
-        address          : dmem_addr             ,
-        write_data       : dmem_write_data       ,
-        byte_write_enable: dmem_byte_write_enable,
-        read_data        : dmem_read_data        ,
+        clk    ,
+        rst_n  ,
+
+        port: ram_port,
     );
+
+    inst mem_controller: MemoryController::<ROM, RAM, PERIPH> (
+        clk                                          ,
+        rst_n                                        ,
+        rom_address          : imem_addr             ,
+        rom_read_data        : instruction           ,
+        ram_address          : dmem_addr             ,
+        ram_write_data       : dmem_write_data       ,
+        ram_byte_write_enable: dmem_byte_write_enable,
+        ram_read_data        : dmem_read_data        ,
+        ram_error            : _                     ,
+        rom_port_a                                   ,
+        rom_port_b                                   ,
+        ram_port                                     ,
+        periph_port                                  ,
+    );
+
+    var gpo_write_enable: bool    ;
+    var gpo_write_data  : logic<8>;
+    var gpo_write_reg   : logic<2>;
+
+    always_comb {
+        /* verilator lint_off WIDTHTRUNC */
+        case periph_port.byte_write_enable {
+            4'b001: {
+                gpo_write_reg    = 0;
+                gpo_write_data   = periph_port.write_data & 32'hff;
+                gpo_write_enable = periph_port.enable;
+            }
+            4'b010: {
+                gpo_write_reg    = 1;
+                gpo_write_data   = periph_port.write_data >> 8 & 32'hff;
+                gpo_write_enable = periph_port.enable;
+            }
+            4'b100: {
+                gpo_write_reg    = 2;
+                gpo_write_data   = periph_port.write_data >> 16 & 32'hff;
+                gpo_write_enable = periph_port.enable;
+            }
+            default: {
+                gpo_write_reg    = 0;
+                gpo_write_enable = false;
+            }
+        }
+        /* verilator lint_on WIDTHTRUNC */
+    }
+
+    var gpo_out: logic<8>;
+
+    inst gpo: Gpo #(
+        NUM_PINS: 8,
+    ) (
+        clk    ,
+        rst_n  ,
+
+        register    : gpo_write_reg   ,
+        write_data  : gpo_write_data  ,
+        write_enable: gpo_write_enable,
+
+        gpo_out  ,
+    );
+
+    /* verilator lint_off WIDTHTRUNC */
+    assign led = gpo_out;
+    /* verilator lint_on WIDTHTRUNC */
 }
