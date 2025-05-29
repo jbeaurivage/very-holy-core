@@ -118,6 +118,7 @@ module Soc::<ROM: MemRegion, RAM: MemRegion, PERIPH: MemRegion> (
             }
             default: {
                 gpo_write_reg    = 0;
+                gpo_write_data = 0;
                 gpo_write_enable = false;
             }
         }
