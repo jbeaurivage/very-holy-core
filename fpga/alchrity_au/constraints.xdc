@@ -1,39 +1,20 @@
-set_property PACKAGE_PIN N14 [get_ports {clk}]
-set_property IOSTANDARD LVCMOS33 [get_ports {clk}]
-# clk => 100000000Hz
-create_clock -period 20.0 -name clk_0 -waveform {0.000 10.000} [get_ports clk]
-set_clock_groups -asynchronous -group {clk_0}
+set_property -dict { PACKAGE_PIN N14 IOSTANDARD LVCMOS33 } [get_ports {clk}]
 
-set_property PACKAGE_PIN P6 [get_ports {rst_n}]
-set_property IOSTANDARD LVCMOS33 [get_ports {rst_n}]
+set_property -dict { PACKAGE_PIN P6 IOSTANDARD LVCMOS33 } [get_ports {rst_n}]
 
-set_property PACKAGE_PIN K13 [get_ports {led[0]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {led[0]}]
+set_property -dict { PACKAGE_PIN K13 IOSTANDARD LVCMOS33 } [get_ports {led[0]}]
+set_property -dict { PACKAGE_PIN K12 IOSTANDARD LVCMOS33 } [get_ports {led[1]}]
+set_property -dict { PACKAGE_PIN L14 IOSTANDARD LVCMOS33 } [get_ports {led[2]}]
+set_property -dict { PACKAGE_PIN L13 IOSTANDARD LVCMOS33 } [get_ports {led[3]}]
+set_property -dict { PACKAGE_PIN M16 IOSTANDARD LVCMOS33 } [get_ports {led[4]}]
+set_property -dict { PACKAGE_PIN M14 IOSTANDARD LVCMOS33 } [get_ports {led[5]}]
+set_property -dict { PACKAGE_PIN M12 IOSTANDARD LVCMOS33 } [get_ports {led[6]}]
+set_property -dict { PACKAGE_PIN N16 IOSTANDARD LVCMOS33 } [get_ports {led[7]}]
 
-set_property PACKAGE_PIN K12 [get_ports {led[1]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {led[1]}]
+set_property -dict { PACKAGE_PIN P15 IOSTANDARD LVCMOS33 } [get_ports {usb_rx}]
+set_property -dict { PACKAGE_PIN P16 IOSTANDARD LVCMOS33 } [get_ports {usb_tx}]
 
-set_property PACKAGE_PIN L14 [get_ports {led[2]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {led[2]}]
-
-set_property PACKAGE_PIN L13 [get_ports {led[3]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {led[3]}]
-
-set_property PACKAGE_PIN M16 [get_ports {led[4]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {led[4]}]
-
-set_property PACKAGE_PIN M14 [get_ports {led[5]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {led[5]}]
-
-set_property PACKAGE_PIN M12 [get_ports {led[6]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {led[6]}]
-
-set_property PACKAGE_PIN N16 [get_ports {led[7]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {led[7]}]
-
-set_property PACKAGE_PIN P15 [get_ports {usb_rx}]
-set_property IOSTANDARD LVCMOS33 [get_ports {usb_rx}]
-
-set_property PACKAGE_PIN P16 [get_ports {usb_tx}]
-set_property IOSTANDARD LVCMOS33 [get_ports {usb_tx}]
-
+# Ignore timing for asynchronous outputs
+set_false_path -to [get_ports {usb_rx}]
+set_false_path -to [get_ports {usb_tx}]
+set_false_path -to [get_ports {led[*]}]

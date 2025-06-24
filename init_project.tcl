@@ -31,4 +31,12 @@ set xdcSources [list "./fpga/alchrity_au/constraints.xdc" "./fpga/alchrity_au/au
 read_xdc $xdcSources
 set_property STEPS.WRITE_BITSTREAM.ARGS.BIN_FILE true [get_runs impl_1]
 update_compile_order -fileset sources_1
+
+# Veryl generics creates a bunch of top modules.
+# Let's select the correct one.
+set_property top very_holy_core_au_top [current_fileset]
+
+# Generate clocking wizard
+source "./fpga/clk_wiz.tcl"
+
 start_gui

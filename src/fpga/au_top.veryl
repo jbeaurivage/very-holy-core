@@ -1,26 +1,29 @@
 module au_top (
-    clk  : input clock,
-    rst_n: input reset,
+    clk  : input 'ext    clock,
+    rst_n: input 'system reset,
 
-    led: output logic<8>,
+    led: output 'system logic<8>,
 
-    usb_rx: input  logic,
-    usb_tx: output logic,
+    usb_rx: input  'system logic,
+    usb_tx: output 'system logic,
 
 ) {
-    // var sysclk       : logic;
-    // var clk_locked   : bool ;
-    // let clock_gen_rst: logic = rst_n;
+    var sysclk       : 'system clock;
+    var clk_locked   :         bool ;
+    let clock_gen_rst: 'system logic = rst_n;
 
-    // inst clk_gen: $sv::clk_wiz_0 (
-    //     clk_in1: clk          ,
-    //     clk_out: sysclk       ,
-    //     r#reset: clock_gen_rst,
-    //     locked : clk_locked   ,
-    // );
+    // The clocking wizard takes care of handling CDC
+    unsafe (cdc) {
+        inst clk_gen: $sv::clk_wiz_0 (
+            clk_in1 : clk          ,
+            clk_out1: sysclk       ,
+            resetn  : clock_gen_rst,
+            locked  : clk_locked   ,
+        );
+    }
 
     inst soc: Soc::<ROM_CONFIG, RAM_CONFIG, PERIPH_BUS_CONFIG> (
-        clk             ,
+        clk   : sysclk  ,
         rst_n           ,
         led   : led[7:1],
         usb_rx          ,
@@ -28,8 +31,8 @@ module au_top (
     );
 
     // Activity LED
-    var r_count: logic<32>;
-    always_ff {
+    var r_count: 'system logic<32>;
+    always_ff (sysclk) {
         if_reset {
             r_count = 0;
             led[0]  = 0;
