@@ -23,7 +23,7 @@ pub package ROM_CONFIG for MemRegion {
     const START_ADDR: u32    = 0;
     const SIZE      : u32    = 1024;
     const WRITEABLE : bool   = false;
-    const INIT_FILE : string = "test_imem.hex";
+    const INIT_FILE : string = "";
 }
 
 pub package RAM_CONFIG for MemRegion {
