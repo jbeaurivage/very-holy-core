@@ -23,7 +23,7 @@ pub package ROM_CONFIG for MemRegion {
     const START_ADDR: u32    = 0;
     const SIZE      : u32    = 1024;
     const WRITEABLE : bool   = false;
-    const INIT_FILE : string = "test_imem.hex";
+    const INIT_FILE : string = "";
 }
 
 pub package RAM_CONFIG for MemRegion {
@@ -53,7 +53,7 @@ pub package TEST_ROM_CONFIG for MemRegion {
     const START_ADDR: u32    = 0;
     const SIZE      : u32    = 1024;
     const WRITEABLE : bool   = false;
-    const INIT_FILE : string = "";
+    const INIT_FILE : string = "src/memory/test_imem.hex";
 }
 
 pub package TEST_RAM_CONFIG for MemRegion {
@@ -63,7 +63,7 @@ pub package TEST_RAM_CONFIG for MemRegion {
     const START_ADDR: u32    = 1024;
     const SIZE      : u32    = 1024;
     const WRITEABLE : bool   = true;
-    const INIT_FILE : string = "";
+    const INIT_FILE : string = "src/memory/test_dmem.hex";
 }
 
 pub package TEST_PERIPH_BUS_CONFIG for MemRegion {
