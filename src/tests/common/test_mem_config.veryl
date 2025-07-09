@@ -1,0 +1,29 @@
+pub package TEST_ROM_CONFIG for MemRegion {
+    const ADDR_WIDTH: u32    = 32;
+    const DATA_WIDTH: u32    = 32;
+    const NUM_COL   : u8     = 4;
+    const START_ADDR: u32    = 0;
+    const SIZE      : u32    = 1024;
+    const WRITEABLE : bool   = false;
+    const INIT_FILE : string = "";
+}
+
+pub package TEST_RAM_CONFIG for MemRegion {
+    const ADDR_WIDTH: u32    = 32;
+    const DATA_WIDTH: u32    = 32;
+    const NUM_COL   : u8     = 4;
+    const START_ADDR: u32    = 1024;
+    const SIZE      : u32    = 1024;
+    const WRITEABLE : bool   = true;
+    const INIT_FILE : string = "";
+}
+
+pub package TEST_PERIPH_BUS_CONFIG for MemRegion {
+    const ADDR_WIDTH: u32    = 32;
+    const DATA_WIDTH: u32    = 32;
+    const NUM_COL   : u8     = 4;
+    const START_ADDR: u32    = 32'h80000000;
+    const SIZE      : u32    = 1024;
+    const WRITEABLE : bool   = true;
+    const INIT_FILE : string = "";
+}
