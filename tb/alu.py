@@ -2,11 +2,7 @@ import cocotb
 from cocotb.triggers import Timer
 import random
 
-def binary_to_hex(bin_str):
-    # Convert binary string to hexadecimal
-    hex_str = hex(int(str(bin_str), 2))[2:]
-    hex_str = hex_str.zfill(8)
-    return hex_str.upper()
+from utils import bin_to_hex
 
 # Test that an unknown instruction reverts to default
 @cocotb.test()
@@ -96,7 +92,7 @@ async def sub_test(dut):
         await Timer(1, units="ns")
 
         assert str(dut.alu_result.value) == bin(expected)[2:].zfill(32)
-        assert binary_to_hex(dut.alu_result.value) == hex(expected)[2:].zfill(8).upper()
+        assert bin_to_hex(dut.alu_result.value) == hex(expected)[2:].zfill(8).upper()
         assert int(str(dut.alu_result.value),2) == expected
 
 @cocotb.test()
@@ -224,7 +220,7 @@ async def sra_test(dut):
         # We then mash on 32 bits to get the raw bits back to compare
         expected = ( (src1 - (1<<32)) >> shamt) & 0xFFFFFFFF
 
-        assert binary_to_hex(dut.alu_result.value) ==  hex(expected)[2:].upper()
+        assert bin_to_hex(dut.alu_result.value) ==  hex(expected)[2:].upper()
         assert int(dut.alu_result.value) ==  expected
 
 @cocotb.test()

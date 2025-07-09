@@ -3,6 +3,8 @@ import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge
 
+from utils import bin_to_hex, init_memory
+
 class Writeback:
     def __init__(self, packed):
         self.data = packed & 0xFFFFFFFF
@@ -24,27 +26,14 @@ def assert_wb(wb_val, dest_reg, expected):
 
 def assert_reg_contents(dut, reg, expected):
     reg_value = dut.regfile.registers[reg].value
-    assert expected == reg_value, f'Expected {expected:8x} at register {reg}, got {binary_to_hex(reg_value)}'
+    assert expected == reg_value, f'Expected {expected:8x} at register {reg}, got {bin_to_hex(reg_value)}'
 
 def assert_dmem(dmem, address, expected):
     # Offset the address
     # mem is byte adressed but is made out of words in the eyes of the software
     word_idx = int((address - 0x400) / 4)
     mem_value = dmem.mem[word_idx].value
-    assert expected == mem_value, f'Expected {expected:8x} at address {address}, got {binary_to_hex(mem_value)}'
-
-
-def binary_to_hex(bin_str):
-    # Convert binary string to hexadecimal
-    hex_str = hex(int(str(bin_str), 2))[2:]
-    hex_str = hex_str.zfill(8)
-    return hex_str.upper()
-
-def hex_to_bin(hex_str):
-    # Convert hex str to bin
-    bin_str = bin(int(str(hex_str), 16))[2:]
-    bin_str = bin_str.zfill(32)
-    return bin_str.upper()
+    assert expected == mem_value, f'Expected {expected:8x} at address {address}, got {bin_to_hex(mem_value)}'
 
 @cocotb.coroutine
 async def cpu_reset(dut):
@@ -59,18 +48,6 @@ async def cpu_reset(dut):
     # Wait another cycle to allow the instruction fetch to propagate
     await RisingEdge(dut.clk)
 
-@cocotb.coroutine
-async def init_memory(mem, hexfile):
-    offset = 0
-    for raw_instruction in hexfile.splitlines() :
-        str_instruction = raw_instruction.split("/")[0].strip()
-        # Skip empty lines
-        if str_instruction != "":
-            print(str_instruction)
-            instruction = int(str_instruction, 16)
-            mem[offset].value = instruction
-            offset += 1
-    
 @cocotb.test()
 async def cpu_integration_test(dut):
     cocotb.start_soon(Clock(dut.clk, 1, units="ns").start())
@@ -80,11 +57,11 @@ async def cpu_integration_test(dut):
     print(f"Current dir: {os.getcwd()}")
 
     # Instruction memory is at 0x000-0x3FF
-    with open("../test_imem.hex", "r", encoding="UTF-8") as f:
+    with open("./test_imem.hex", "r", encoding="UTF-8") as f:
         imem_contents = f.read()
     
    # Data memory is at 0x400-0x7FF 
-    with open("../test_dmem.hex", "r", encoding="UTF-8") as f:
+    with open("./test_dmem.hex", "r", encoding="UTF-8") as f:
         dmem_contents = f.read()
     
     imem = dut.soc.rom
@@ -102,10 +79,10 @@ async def cpu_integration_test(dut):
     print("cpu reset")
 
     # Check that the instruction mem loaded correctly
-    assert binary_to_hex(imem.mem[0].value) == "40802903"
+    assert bin_to_hex(imem.mem[0].value) == "40802903"
 
-    assert binary_to_hex(cpu.pc.value) == "00000000"
-    assert binary_to_hex(cpu.instruction.value) == "40802903"
+    assert bin_to_hex(cpu.pc.value) == "00000000"
+    assert bin_to_hex(cpu.instruction.value) == "40802903"
 
     # Check that the data mem loaded correctly
     assert_dmem(dmem, 0x400, 0xAEAEAEAE)
@@ -149,7 +126,7 @@ async def cpu_integration_test(dut):
     # Check the value of x18, which was written by lw op from the last cycle
     assert_reg_contents(cpu, 18, 0xDEADBEEF)
     # The value of mem[0x40C] will propagate to memory in the next cycle
-    # assert binary_to_hex(dut.data_memory.ram.mem[test_address].value) == "DEADBEEF"
+    # assert bin_to_hex(dut.data_memory.ram.mem[test_address].value) == "DEADBEEF"
 
     ##################
     # ADD TEST
@@ -228,11 +205,11 @@ async def cpu_integration_test(dut):
     ##################
     print("\n\nTESTING BEQ\n\n")
 
-    assert binary_to_hex(cpu.instruction.value) == "00730663"
+    assert bin_to_hex(cpu.instruction.value) == "00730663"
 
     await RisingEdge(cpu.clk) # beq x6 x7 0xC NOT TAKEN
     # Check if the current instruction is the one we expected
-    assert binary_to_hex(cpu.instruction.value) == "40802B03"
+    assert bin_to_hex(cpu.instruction.value) == "40802B03"
 
     # Execute lw x22 0x408(x0)
     await RisingEdge(cpu.clk)
@@ -245,7 +222,7 @@ async def cpu_integration_test(dut):
     await RisingEdge(cpu.clk)
 
     # Check if the current instruction is the one we expected
-    assert binary_to_hex(cpu.instruction.value) == "40002B03"
+    assert bin_to_hex(cpu.instruction.value) == "40002B03"
     # Check that lw x22 0x408(x0) has propagated to the regfile
     assert_reg_contents(cpu, 22, 0xDEADBEEF)
 
@@ -259,12 +236,12 @@ async def cpu_integration_test(dut):
     await RisingEdge(cpu.clk) 
 
     # Check if the current instruction is the one we expected
-    assert binary_to_hex(cpu.instruction.value) == "00000663"
+    assert bin_to_hex(cpu.instruction.value) == "00000663"
 
     await RisingEdge(cpu.clk) # beq x0 x0 0xC TAKEN
     # Check if the current instruction is the one we expected
-    assert binary_to_hex(cpu.instruction.value) == "00000013"
-    assert binary_to_hex(cpu.pc.value) == "00000040"
+    assert bin_to_hex(cpu.instruction.value) == "00000013"
+    assert bin_to_hex(cpu.pc.value) == "00000040"
 
     await RisingEdge(cpu.clk) # FINAL NOP
 
@@ -279,24 +256,24 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING JAL\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "00C000EF"
-    assert binary_to_hex(cpu.pc.value) == "00000044"
+    assert bin_to_hex(cpu.instruction.value) == "00C000EF"
+    assert bin_to_hex(cpu.pc.value) == "00000044"
 
 
     # Execute jal x1 0xC
     await RisingEdge(cpu.clk)
     assert_wb(cpu.writeback, 1, 0x00000048) # stored old pc + 4
     # Check new state & ra (x1) register value
-    assert binary_to_hex(cpu.instruction.value) == "FFDFF0EF"
-    assert binary_to_hex(cpu.pc.value) == "00000050"
+    assert bin_to_hex(cpu.instruction.value) == "FFDFF0EF"
+    assert bin_to_hex(cpu.pc.value) == "00000050"
 
 
     # Execute jal x1 -4
     await RisingEdge(cpu.clk) 
     assert_wb(cpu.writeback, 1, 0x00000054) # stored old pc + 4
     # Check new state & ra (x1) register value
-    assert binary_to_hex(cpu.instruction.value) == "00C000EF"
-    assert binary_to_hex(cpu.pc.value) == "0000004C"
+    assert bin_to_hex(cpu.instruction.value) == "00C000EF"
+    assert bin_to_hex(cpu.pc.value) == "0000004C"
 
 
     # Execute jal x1 0xC
@@ -304,8 +281,8 @@ async def cpu_integration_test(dut):
 
     assert_wb(cpu.writeback, 1, 0x00000050) # stored old pc + 4
     # Check new state & ra (x1) register value
-    assert binary_to_hex(cpu.instruction.value) == "40C02383"
-    assert binary_to_hex(cpu.pc.value) == "00000058"
+    assert bin_to_hex(cpu.instruction.value) == "40C02383"
+    assert bin_to_hex(cpu.pc.value) == "00000058"
 
     # Execute lw x7 0xC(x0)
     await RisingEdge(cpu.clk) 
@@ -321,15 +298,15 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING ADDI\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "1AB38D13"
-    assert not binary_to_hex(cpu.regfile.registers[26].value) == "DEADC09A"
+    assert bin_to_hex(cpu.instruction.value) == "1AB38D13"
+    assert not bin_to_hex(cpu.regfile.registers[26].value) == "DEADC09A"
 
     await RisingEdge(cpu.clk) # addi x26 x7 0x1AB
 
     # Check that the previous lw was stored in the regfile
     assert_reg_contents(cpu, 7, 0xDEADBEEF)
 
-    assert binary_to_hex(cpu.instruction.value) == "F2130C93"
+    assert bin_to_hex(cpu.instruction.value) == "F2130C93"
     assert_wb(cpu.writeback, 26, 0xDEADC09A)
 
     await RisingEdge(cpu.clk) # addi x25 x6 0xF21
@@ -342,7 +319,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING AUIPC\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "1F1FA297"
+    assert bin_to_hex(cpu.instruction.value) == "1F1FA297"
 
     await RisingEdge(cpu.clk) # auipc x5 0x1F1FA
     assert_wb(cpu.writeback, 5, 0x1F1FA064)
@@ -354,7 +331,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING LUI\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "2F2FA2B7"
+    assert bin_to_hex(cpu.instruction.value) == "2F2FA2B7"
 
     await RisingEdge(cpu.clk) # lui x5 0x2F2FA 
     assert_wb(cpu.writeback, 5, 0x2F2FA000)
@@ -367,7 +344,7 @@ async def cpu_integration_test(dut):
 
     # Check test's init state
     assert_reg_contents(cpu, 19, 0x00000AAA)
-    assert binary_to_hex(cpu.instruction.value) == "FFF9AB93"
+    assert bin_to_hex(cpu.instruction.value) == "FFF9AB93"
 
     await RisingEdge(cpu.clk) # slti x23 x19 0xFFF
 
@@ -388,7 +365,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING SLTIU\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "FFF9BB13"
+    assert bin_to_hex(cpu.instruction.value) == "FFF9BB13"
 
     await RisingEdge(cpu.clk) # sltiu x22 x19 0xFFF
     assert_wb(cpu.writeback, 22, 0x00000001)
@@ -403,7 +380,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING XORI\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "AAA94913"
+    assert bin_to_hex(cpu.instruction.value) == "AAA94913"
 
     await RisingEdge(cpu.clk) # xori x18 x19 0xAAA 
     assert_wb(cpu.writeback, 18, 0x21524445)
@@ -418,7 +395,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING ORI\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "AAA9EA13"
+    assert bin_to_hex(cpu.instruction.value) == "AAA9EA13"
 
     await RisingEdge(cpu.clk) # ori x20 x19 0xAAA 
     assert_wb(cpu.writeback, 20, 0xFFFFFEEF)
@@ -434,7 +411,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING ANDI\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "7FFA7913"
+    assert bin_to_hex(cpu.instruction.value) == "7FFA7913"
 
     await RisingEdge(cpu.clk) # andi x18 x20 0x7FF 
     assert_wb(cpu.writeback, 18, 0x000006EF)
@@ -455,7 +432,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING SLLI\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "00499993"
+    assert bin_to_hex(cpu.instruction.value) == "00499993"
 
     await RisingEdge(cpu.clk) # slli x19 x19 0x4
     assert_wb(cpu.writeback, 19, 0xFFFFEEF0)
@@ -476,7 +453,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING SRLI\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "0049DA13"
+    assert bin_to_hex(cpu.instruction.value) == "0049DA13"
 
     await RisingEdge(cpu.clk) # srli x20 x19 0x4
     # Check that previous op didn't affect register state
@@ -499,7 +476,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING SRAI\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "404ADA93"
+    assert bin_to_hex(cpu.instruction.value) == "404ADA93"
 
     await RisingEdge(cpu.clk) # srai x21 x21 0x4
     assert_wb(cpu.writeback, 21, 0xFFFFFFEE)
@@ -519,7 +496,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING SUB\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "412A8933"
+    assert bin_to_hex(cpu.instruction.value) == "412A8933"
 
     await RisingEdge(cpu.clk) # sub x18 x21 x18
     assert_wb(cpu.writeback, 18, 0xFFFFF8FF)
@@ -531,7 +508,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING SLL\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "00800393"
+    assert bin_to_hex(cpu.instruction.value) == "00800393"
     await RisingEdge(cpu.clk) # addi x7 x0 0x8
     assert_wb(cpu.writeback, 7, 0x00000008)
 
@@ -544,7 +521,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING SLT\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "013928B3"
+    assert bin_to_hex(cpu.instruction.value) == "013928B3"
 
     await RisingEdge(cpu.clk) # slt x17 x22 x23
     assert_wb(cpu.writeback, 17, 0x00000001)
@@ -555,7 +532,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING SLTU\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "013938B3"
+    assert bin_to_hex(cpu.instruction.value) == "013938B3"
 
     await RisingEdge(cpu.clk) # sltu x17 x22 x23
     assert_wb(cpu.writeback, 17, 0x00000001)
@@ -566,7 +543,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING XOR\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "013948B3"
+    assert bin_to_hex(cpu.instruction.value) == "013948B3"
 
     await RisingEdge(cpu.clk) # xor x17 x18 x19
     assert_wb(cpu.writeback, 17, 0x000711F0)
@@ -577,7 +554,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING SRL\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "0079D433"
+    assert bin_to_hex(cpu.instruction.value) == "0079D433"
 
     await RisingEdge(cpu.clk) # srl x8 x19 x7
     assert_wb(cpu.writeback, 8, 0x00FFFFEE)
@@ -588,7 +565,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING SRA\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "4079D433"
+    assert bin_to_hex(cpu.instruction.value) == "4079D433"
 
     await RisingEdge(cpu.clk) # sra x8 x19 x7 
     assert_wb(cpu.writeback, 8, 0xFFFFFFEE)
@@ -601,17 +578,17 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING BLT\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "0088C463"
-    assert binary_to_hex(cpu.regfile.registers[17].value) == "000711F0"
+    assert bin_to_hex(cpu.instruction.value) == "0088C463"
+    assert bin_to_hex(cpu.regfile.registers[17].value) == "000711F0"
 
     # execute, branch should NOT be taken !
     await RisingEdge(cpu.clk) # blt x17 x8 0x8
     assert_reg_contents(cpu, 8, 0xFFFFFFEE)
-    assert binary_to_hex(cpu.instruction.value) == "01144463"
+    assert bin_to_hex(cpu.instruction.value) == "01144463"
 
     # execute, branch SHOULD be taken !
     await RisingEdge(cpu.clk) # blt x8 x17 0x8
-    assert not binary_to_hex(cpu.instruction.value) == "00C00413"
+    assert not bin_to_hex(cpu.instruction.value) == "00C00413"
     # We verify x8 value was not altered by addi instruction, because it was never meant tyo be executed (sad)
     wb = Writeback(cpu.writeback.value)
     assert not cpu.writeback_enable.value
@@ -625,7 +602,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING BNE\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "00841463"
+    assert bin_to_hex(cpu.instruction.value) == "00841463"
 
     # execute, branch should NOT be taken !
     await RisingEdge(cpu.clk) # bne x8 x8 0x8
@@ -633,11 +610,11 @@ async def cpu_integration_test(dut):
     # We check that the previous instruction hasn't altered the regfile
     assert_reg_contents(cpu, 8, 0xFFFFFFEE)
 
-    assert binary_to_hex(cpu.instruction.value) == "01141463"
+    assert bin_to_hex(cpu.instruction.value) == "01141463"
 
     # execute, branch SHOULD be taken !
     await RisingEdge(cpu.clk) # bne x8 x17 0x8
-    assert not binary_to_hex(cpu.instruction.value) == "00C00413"
+    assert not bin_to_hex(cpu.instruction.value) == "00C00413"
     # We verify x8 value was not altered by addi instruction, because it was never meant tyo be executed (sad)
     assert_reg_contents(cpu, 8, 0xFFFFFFEE)
 
@@ -649,7 +626,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING BGE\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "01145463"
+    assert bin_to_hex(cpu.instruction.value) == "01145463"
 
     # execute, branch should NOT be taken !
     await RisingEdge(cpu.clk) # bge x8 x17 0x8 
@@ -657,11 +634,11 @@ async def cpu_integration_test(dut):
     # We check that the previous instruction hasn't altered the regfile
     assert_reg_contents(cpu, 8, 0xFFFFFFEE)
 
-    assert binary_to_hex(cpu.instruction.value) == "00845463"
+    assert bin_to_hex(cpu.instruction.value) == "00845463"
 
     # execute, branch SHOULD be taken !
     await RisingEdge(cpu.clk) # bge x8 x8 0x8 
-    assert not binary_to_hex(cpu.instruction.value) == "00C00413"
+    assert not bin_to_hex(cpu.instruction.value) == "00C00413"
     # We verify x8 value was not altered by addi instruction, because it was never meant tyo be executed (sad)
     assert_reg_contents(cpu, 8, 0xFFFFFFEE)
 
@@ -673,7 +650,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING BLTU\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "01146463"
+    assert bin_to_hex(cpu.instruction.value) == "01146463"
 
     # execute, branch should NOT be taken !
     await RisingEdge(cpu.clk) # bltu x8 x17 0x8
@@ -681,11 +658,11 @@ async def cpu_integration_test(dut):
     # We check that the previous instruction hasn't altered the regfile
     assert_reg_contents(cpu, 8, 0xFFFFFFEE)
 
-    assert binary_to_hex(cpu.instruction.value) == "0088E463"
+    assert bin_to_hex(cpu.instruction.value) == "0088E463"
 
     # execute, branch SHOULD be taken !
     await RisingEdge(cpu.clk) # bltu x17 x8 0x8
-    assert not binary_to_hex(cpu.instruction.value) == "00C00413"
+    assert not bin_to_hex(cpu.instruction.value) == "00C00413"
     # We verify x8 value was not altered by addi instruction, because it was never meant tyo be executed (sad)
     assert_reg_contents(cpu, 8, 0xFFFFFFEE)
 
@@ -698,7 +675,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING BGEU\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "0088F463"
+    assert bin_to_hex(cpu.instruction.value) == "0088F463"
 
     # execute, branch should NOT be taken !
     await RisingEdge(cpu.clk) # bgeu x17 x8 0x8
@@ -706,11 +683,11 @@ async def cpu_integration_test(dut):
     # We check that the previous instruction hasn't altered the regfile
     assert_reg_contents(cpu, 8, 0xFFFFFFEE)
 
-    assert binary_to_hex(cpu.instruction.value) == "01147463"
+    assert bin_to_hex(cpu.instruction.value) == "01147463"
 
     # execute, branch SHOULD be taken !
     await RisingEdge(cpu.clk) # bgeu x8 x17 0x8 
-    assert not binary_to_hex(cpu.instruction.value) == "00C00413"
+    assert not bin_to_hex(cpu.instruction.value) == "00C00413"
     # We verify x8 value was not altered by addi instruction, because it was never meant tyo be executed (sad)
     assert_reg_contents(cpu, 8, 0xFFFFFFEE)
 
@@ -723,8 +700,8 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING JALR\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "00000397"
-    assert binary_to_hex(cpu.pc.value) == "0000010C"
+    assert bin_to_hex(cpu.instruction.value) == "00000397"
+    assert bin_to_hex(cpu.pc.value) == "0000010C"
 
     await RisingEdge(cpu.clk) # auipc x7 0x00 
 
@@ -733,14 +710,14 @@ async def cpu_integration_test(dut):
 
     await RisingEdge(cpu.clk) # addi x7 x7 0x10
     assert_wb(cpu.writeback, 7, 0x00000120)
-    assert binary_to_hex(cpu.pc_next.value) == "0000011C"
+    assert bin_to_hex(cpu.pc_next.value) == "0000011C"
 
     await RisingEdge(cpu.clk) # jalr x1  -4(x7)
     assert_reg_contents(cpu, 7, 0x00000120)
     assert_wb(cpu.writeback, 1, 0x00000118)
-    assert not binary_to_hex(cpu.instruction.value) == "00C00413"
-    assert binary_to_hex(cpu.regfile.registers[8].value) == "FFFFFFEE"
-    assert binary_to_hex(cpu.pc.value) == "0000011C"
+    assert not bin_to_hex(cpu.instruction.value) == "00C00413"
+    assert bin_to_hex(cpu.regfile.registers[8].value) == "FFFFFFEE"
+    assert bin_to_hex(cpu.pc.value) == "0000011C"
 
     ################
     # 408020a3  //SB TEST START :     sw x8 0x401(x0)     | NO WRITE ! (mis-aligned !)
@@ -749,7 +726,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING SB\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "408020A3"
+    assert bin_to_hex(cpu.instruction.value) == "408020A3"
     # Check initial state, data will propagate to memory on next cycle
     assert_dmem(dmem, 0x404, 0x00000000)
 
@@ -771,7 +748,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING SH\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "408010A3"
+    assert bin_to_hex(cpu.instruction.value) == "408010A3"
 
     await RisingEdge(cpu.clk) # sh x8 0x401(x0)
 
@@ -802,7 +779,7 @@ async def cpu_integration_test(dut):
     print("\n\nTESTING LB\n\n")
 
     # Check test's init state
-    assert binary_to_hex(cpu.instruction.value) == "41000393"
+    assert bin_to_hex(cpu.instruction.value) == "41000393"
 
     await RisingEdge(cpu.clk) # addi x7 x0 0x410 
     assert_wb(cpu.writeback, 7, 0x00000410)
@@ -851,7 +828,7 @@ async def cpu_integration_test(dut):
 
     # lhu x21, -3(x7) is misaligned, should not write back
     assert not cpu.writeback_enable.value
-    assert binary_to_hex(cpu.regfile.registers[21].value) == "FFFFFFEE"
+    assert bin_to_hex(cpu.regfile.registers[21].value) == "FFFFFFEE"
 
     await RisingEdge(cpu.clk) # lhu x21 -6(x7)
 
