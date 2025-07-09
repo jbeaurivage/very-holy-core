@@ -997,8 +997,6 @@ async def cpu_integration_test(dut):
     await RisingEdge(cpu.clk)
 
     wb = Writeback(cpu.writeback.value)
-    print(wb)
-    print(f'current: {Writeback(cpu.next_writeback.value)}')
     assert wb.dest_reg == 4
     assert cpu.writeback_data.value == 0x00000100
 
@@ -1011,6 +1009,10 @@ async def cpu_integration_test(dut):
     # 003380A3  //                    sb x3, 1(x7)        | All LEDs should turn off
     # 00438123  //                    sb x4, 2(x7)        | LED 3 should turn on
     ################################
+
+    # TODO
+    # The LED driver test serves as a crude way to verify that the peripheral
+    # bus integration works as intended.
 
     # lui x7, 0x200       | x7 <= 0x8000000
     await RisingEdge(cpu.clk)
@@ -1026,18 +1028,23 @@ async def cpu_integration_test(dut):
 
     # sb x3, 0(x7)        | All LEDs should turn on
     await RisingEdge(cpu.clk)
+    assert dut.led == 0b1111111
 
     # addi x4, x0, 0x8    | x4 <= 0x8
     await RisingEdge(cpu.clk)
     
     # sb x4, 1(x7)        | LED 3 should turn off
     await RisingEdge(cpu.clk)
+    assert dut.led[3] == 0
 
     # sb x3, 1(x7)        | All LEDs should turn off
     await RisingEdge(cpu.clk)
+    assert dut.led == 0
 
     # sb x4, 2(x7)        | LED 3 should turn on
     await RisingEdge(cpu.clk)
+    assert dut.led[3] == 1
+
     await RisingEdge(cpu.clk)
     await RisingEdge(cpu.clk)
     await RisingEdge(cpu.clk)

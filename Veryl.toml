@@ -5,12 +5,13 @@ authors = ["Justin Beaurivage <code@beaurivage.io>"]
 
 [dependencies]
 # memory = { path = "./memory" }
+uarty = { path = "../uarty" }
 
 [build]
 clock_type = "posedge"
 reset_type = "async_low"
 
-source = "src"
+sources = ["src"]
 target = { type = "directory", path = "target/veryl" }
 
 [test]

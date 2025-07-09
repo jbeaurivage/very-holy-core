@@ -96,48 +96,26 @@ module Soc::<ROM: MemRegion, RAM: MemRegion, PERIPH: MemRegion> #(
         periph_port                                  ,
     );
 
-    var gpo_write_enable: bool    ;
-    var gpo_write_data  : logic<8>;
-    var gpo_write_reg   : logic<2>;
+    inst periph_mux: PeripheralMux (
+        clk,
+        rst: rst_n,
 
-    always_comb {
-        /* verilator lint_off WIDTHTRUNC */
-        case periph_port.byte_write_enable {
-            4'b001: {
-                gpo_write_reg    = 0;
-                gpo_write_data   = periph_port.write_data & 32'hff;
-                gpo_write_enable = periph_port.enable;
-            }
-            4'b010: {
-                gpo_write_reg    = 1;
-                gpo_write_data   = periph_port.write_data >> 8 & 32'hff;
-                gpo_write_enable = periph_port.enable;
-            }
-            4'b100: {
-                gpo_write_reg    = 2;
-                gpo_write_data   = periph_port.write_data >> 16 & 32'hff;
-                gpo_write_enable = periph_port.enable;
-            }
-            default: {
-                gpo_write_reg    = 0;
-                gpo_write_data = 0;
-                gpo_write_enable = false;
-            }
-        }
-        /* verilator lint_on WIDTHTRUNC */
-    }
+        master: periph_port,
+
+        gpo_bus : gpo_port ,
+        uart_bus: uart_port,
+    );
 
     var gpo_out: logic<8>;
 
+    inst gpo_port: MemoryBus #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
     inst gpo: Gpo #(
         NUM_PINS: 8,
     ) (
         clk    ,
         rst_n  ,
 
-        register    : gpo_write_reg   ,
-        write_data  : gpo_write_data  ,
-        write_enable: gpo_write_enable,
+        bus: gpo_port,
 
         gpo_out  ,
     );
@@ -145,4 +123,6 @@ module Soc::<ROM: MemRegion, RAM: MemRegion, PERIPH: MemRegion> #(
     /* verilator lint_off WIDTHTRUNC */
     assign led = gpo_out;
     /* verilator lint_on WIDTHTRUNC */
+
+    inst uart_port: MemoryBus #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
 }

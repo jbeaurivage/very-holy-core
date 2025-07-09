@@ -1,0 +1,102 @@
+pub proto package PeripheralRegion {
+    /// Base address
+    const ADDR_OFFSET: u32;
+    /// Region size in bytes
+    const SIZE: u32;
+}
+
+package GpoRegion for PeripheralRegion {
+    const ADDR_OFFSET: u32 = 0;
+    const SIZE       : u32 = 4;
+}
+
+package UartRegion for PeripheralRegion {
+    const ADDR_OFFSET: u32 = 4;
+    const SIZE       : u32 = 4;
+}
+
+module PeripheralMux (
+    clk: input clock,
+    rst: input reset,
+
+    master: modport MemoryBus::slave,
+
+    gpo_bus : modport MemoryBus::master,
+    uart_bus: modport MemoryBus::master,
+) {
+    enum PeripheralSelect: logic<2> {
+        gpo = 2'b00,
+        uart = 2'b01,
+        invalid = 2'b11,
+    }
+
+    var peripheral_select: PeripheralSelect;
+
+    always_comb {
+        /* verilator lint_off UNSIGNED */
+        if master.address >= GpoRegion::ADDR_OFFSET && master.address <: GpoRegion::ADDR_OFFSET + GpoRegion::SIZE {
+            peripheral_select = PeripheralSelect::gpo;
+        } else if master.address >= UartRegion::ADDR_OFFSET && master.address <: UartRegion::ADDR_OFFSET + UartRegion::SIZE {
+            peripheral_select = PeripheralSelect::uart;
+        } else {
+            peripheral_select = PeripheralSelect::invalid;
+        }
+        /* verilator lint_on UNSIGNED */
+    }
+
+    always_comb {
+        case peripheral_select {
+            PeripheralSelect::gpo: {
+                gpo_bus.enable            = master.enable;
+                gpo_bus.address           = master.address - GpoRegion::ADDR_OFFSET;
+                gpo_bus.write_data        = master.write_data;
+                gpo_bus.byte_write_enable = master.byte_write_enable;
+
+                uart_bus.enable            = false;
+                uart_bus.address           = 0;
+                uart_bus.write_data        = 0;
+                uart_bus.byte_write_enable = 0;
+            }
+
+            PeripheralSelect::uart: {
+                gpo_bus.enable            = false;
+                gpo_bus.address           = 0;
+                gpo_bus.write_data        = 0;
+                gpo_bus.byte_write_enable = 0;
+
+                uart_bus.enable            = master.enable;
+                uart_bus.address           = master.address - GpoRegion::ADDR_OFFSET;
+                uart_bus.write_data        = master.write_data;
+                uart_bus.byte_write_enable = master.byte_write_enable;
+            }
+
+            default: {
+                gpo_bus.enable            = false;
+                gpo_bus.address           = 0;
+                gpo_bus.write_data        = 0;
+                gpo_bus.byte_write_enable = 0;
+
+                uart_bus.enable            = false;
+                uart_bus.address           = 0;
+                uart_bus.write_data        = 0;
+                uart_bus.byte_write_enable = 0;
+            }
+        }
+    }
+
+    // Mux between peripherals bus for read results
+    var previous_peripheral_select: PeripheralSelect;
+    always_ff {
+        if_reset {
+            previous_peripheral_select = PeripheralSelect::invalid;
+        } else {
+            previous_peripheral_select = peripheral_select;
+        }
+    }
+
+    assign master.read_data = case previous_peripheral_select {
+        PeripheralSelect::gpo : gpo_bus.read_data,
+        PeripheralSelect::uart: uart_bus.read_data,
+        default               : 32'h0,
+    };
+}

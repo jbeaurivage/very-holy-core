@@ -1,0 +1,20 @@
+module TestUart(
+    clk: input clock,
+    rst: input reset,
+
+    rx: input logic,
+    tx: output logic,
+) {
+    inst bus: MemoryBus #( ADDR_WIDTH: 32, NUM_COL: 4, COL_WIDTH: 8 );
+
+    inst uart: Uart #(CLOCK_FREQ: 100_000_000, BAUD_RATE: 50_000_000)(
+        clk,
+        rst,
+        bus,
+        rx,
+        tx
+    );
+}
+
+#[test(test_uart, TestUart)]
+include (cocotb, "../../tb/uart.py");

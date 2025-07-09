@@ -1,0 +1,112 @@
+/// Uart driver
+module Uart #(
+    param CLOCK_FREQ: u32 = 50_000_000,
+    param BAUD_RATE: u32 = 115_200,
+)(
+    clk: input clock,
+    rst: input reset,
+
+    bus: modport MemoryBus::slave,
+
+    rx: input logic,
+    tx: output logic,
+) {
+
+    let enable: bool = bus.enable && bus.address <: UartRegion::SIZE;
+
+    var write_enable: bool    ;
+    var write_data  : logic<8>;
+    var register: logic;
+
+    always_comb {
+        /* verilator lint_off WIDTHTRUNC */
+        case bus.byte_write_enable {
+            4'b001: {
+                register = 0;
+                write_data = bus.write_data & 32'hff;
+                write_enable = enable;
+            }
+            4'b010: {
+                register = 1;
+                write_data = 0;
+                // Register 1 is not writeable
+                write_enable = false;
+            } default: {
+                register = 0;
+                write_data = 0;
+                write_enable = false;
+            }
+        }
+        /* verilator lint_on WIDTHTRUNC */
+    }
+
+    always_ff {
+        if_reset {
+            rx_reg = 0;
+            tx_data = 0;
+            tx_enable = false;
+            rx_ready = false;
+            bus.read_data = 0;
+        } else {
+            if register == 0 && write_enable && !tx_busy {
+                tx_data = write_data;
+                tx_enable = true;
+            } else if register == 0 && !write_enable && rx_ready {
+                /* verilator lint_off WIDTHEXPAND */
+                bus.read_data = rx_reg;
+                /* verilator lint_on WIDTHEXPAND */
+                rx_ready = false;
+            }
+
+            if tx_finish {
+                tx_enable = false;
+            }
+
+            if rx_finish {
+                rx_ready = true;
+                rx_reg = rx_data;
+            }
+        }
+    }
+
+    var rx_busy: logic;
+    var rx_finish: logic;
+    var rx_reg: logic<8>;
+    var rx_ready: bool;
+
+    var rx_data: logic<8>;
+    inst uart_rx: uarty::Rx #(
+        CLOCK_FREQUENCY: CLOCK_FREQ,
+        BAUD_RATE,
+    ) (
+        i_clk: clk,
+        i_rst: rst,
+
+        o_busy: rx_busy,
+        o_finish: rx_finish,
+        o_data: rx_data,
+
+        i_rx: rx,
+    );
+
+    var tx_busy: logic;
+    var tx_finish: logic;
+    var tx_data: logic<8>;
+    var tx_enable: bool;
+
+    inst uart_tx: uarty::Tx #(
+        CLOCK_FREQUENCY: CLOCK_FREQ,
+        BAUD_RATE,
+    )(
+        i_clk: clk,
+        i_rst: rst,
+
+        i_en: tx_enable,
+
+        i_data: tx_data,
+        o_busy: tx_busy,
+        o_finish: tx_finish,
+
+        o_tx: tx,
+    );
+}

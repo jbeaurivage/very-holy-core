@@ -1,15 +1,13 @@
 
 
-// General-purpose digital output driver
+/// General-purpose digital output driver
 module Gpo #(
     param NUM_PINS: u16 = 8,
 ) (
     clk  : input clock,
     rst_n: input reset,
 
-    register    : input logic<2>,
-    write_data  : input logic<8>,
-    write_enable: input bool    ,
+    bus: modport MemoryBus::slave,
 
     gpo_out: output logic<NUM_PINS>,
 ) {
@@ -17,6 +15,39 @@ module Gpo #(
         out = 0,
         clear = 1,
         set = 2,
+    }
+
+    var write_enable: bool    ;
+    var write_data  : logic<8>;
+    var register    : logic<2>;
+
+    let enable: bool = bus.enable && bus.address <: GpoRegion::SIZE;
+
+    always_comb {
+        /* verilator lint_off WIDTHTRUNC */
+        case bus.byte_write_enable {
+            4'b001: {
+                register     = 0;
+                write_data   = bus.write_data & 32'hff;
+                write_enable = enable;
+            }
+            4'b010: {
+                register     = 1;
+                write_data   = bus.write_data >> 8 & 32'hff;
+                write_enable = enable;
+            }
+            4'b100: {
+                register     = 2;
+                write_data   = bus.write_data >> 16 & 32'hff;
+                write_enable = enable;
+            }
+            default: {
+                register     = 0;
+                write_data   = 0;
+                write_enable = false;
+            }
+        }
+        /* verilator lint_on WIDTHTRUNC */
     }
 
     var out: logic<NUM_PINS>;
@@ -38,5 +69,6 @@ module Gpo #(
         }
     }
 
-    assign gpo_out = out;
+    assign gpo_out       = out;
+    assign bus.read_data = {8'b0, gpo_out repeat 3};
 }
