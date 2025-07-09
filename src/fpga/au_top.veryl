@@ -1,4 +1,6 @@
-module au_top (
+module au_top #(
+    param CLOCK_FREQ: u32 = 50_000_000,
+) (
     clk  : input 'ext    clock,
     rst_n: input 'system reset,
 
@@ -22,7 +24,9 @@ module au_top (
         );
     }
 
-    inst soc: Soc::<ROM_CONFIG, RAM_CONFIG, PERIPH_BUS_CONFIG> (
+    inst soc: Soc::<ROM_CONFIG, RAM_CONFIG, PERIPH_BUS_CONFIG> #(
+        CLOCK_FREQ  ,
+    ) (
         clk   : sysclk  ,
         rst_n           ,
         led   : led[7:1],

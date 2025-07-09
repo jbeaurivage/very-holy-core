@@ -1,4 +1,6 @@
-module Soc::<ROM: MemRegion, RAM: MemRegion, PERIPH: MemRegion> (
+module Soc::<ROM: MemRegion, RAM: MemRegion, PERIPH: MemRegion> #(
+    param CLOCK_FREQ: u32 = 50_000_000,
+) (
     clk  : input clock,
     rst_n: input reset,
 
