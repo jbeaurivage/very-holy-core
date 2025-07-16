@@ -25,7 +25,7 @@ def assert_wb(wb_val, dest_reg, expected):
     Writeback(wb_val.value).assert_wb(dest_reg, expected)
 
 def assert_reg_contents(dut, reg, expected):
-    reg_value = dut.regfile.registers[reg].value
+    reg_value = dut.regfile.mem.mem[reg].value
     assert expected == reg_value, f'Expected {expected:8x} at register {reg}, got {bin_to_hex(reg_value)}'
 
 def assert_dmem(dmem, address, expected):
@@ -148,7 +148,7 @@ async def cpu_integration_test(dut):
     
     # The read result will propagate to x19 in the next cycle.
     assert Writeback(cpu.writeback.value).dest_reg == 19
-    assert cpu.writeback_data.value == 0x00000AAA
+    assert cpu.reg_write_port.data.value == 0x00000AAA
     
     # Execute add x20 x18 x19
     await RisingEdge(cpu.clk)
@@ -216,7 +216,7 @@ async def cpu_integration_test(dut):
 
     # The read result will propagate to x22 in the next cycle.
     assert Writeback(cpu.writeback.value).dest_reg == 22
-    assert cpu.writeback_data.value == 0xDEADBEEF
+    assert cpu.reg_write_port.data.value == 0xDEADBEEF
 
     # Execute beq x18 x22 0x10 TAKEN
     await RisingEdge(cpu.clk)
@@ -230,7 +230,7 @@ async def cpu_integration_test(dut):
     await RisingEdge(cpu.clk)
 
     assert Writeback(cpu.writeback.value).dest_reg == 22
-    assert cpu.writeback_data.value == 0xAEAEAEAE
+    assert cpu.reg_write_port.data.value == 0xAEAEAEAE
 
     # Execute beq x22 x22 -0x8 TAKEN
     await RisingEdge(cpu.clk) 
@@ -288,7 +288,7 @@ async def cpu_integration_test(dut):
     await RisingEdge(cpu.clk) 
 
     assert Writeback(cpu.writeback.value).dest_reg == 7
-    assert cpu.writeback_data.value == 0xDEADBEEF
+    assert cpu.reg_write_port.data.value == 0xDEADBEEF
 
     ##################
     # ADDI TEST
@@ -299,7 +299,7 @@ async def cpu_integration_test(dut):
 
     # Check test's init state
     assert bin_to_hex(cpu.instruction.value) == "1AB38D13"
-    assert not bin_to_hex(cpu.regfile.registers[26].value) == "DEADC09A"
+    assert not bin_to_hex(cpu.regfile.mem.mem[26].value) == "DEADC09A"
 
     await RisingEdge(cpu.clk) # addi x26 x7 0x1AB
 
@@ -386,7 +386,7 @@ async def cpu_integration_test(dut):
     assert_wb(cpu.writeback, 18, 0x21524445)
 
     await RisingEdge(cpu.clk) # xori x19 x18 0x000
-    assert_wb(cpu.writeback, 19, cpu.regfile.registers[18].value)
+    assert_wb(cpu.writeback, 19, cpu.regfile.mem.mem[18].value)
 
     ##################
     # AAA9EA13  //ORI TEST START :    ori x20 x19 0xAAA   | x20 <= FFFFFEEF
@@ -401,7 +401,7 @@ async def cpu_integration_test(dut):
     assert_wb(cpu.writeback, 20, 0xFFFFFEEF)
 
     await RisingEdge(cpu.clk) # ori x21 x20 0x000
-    assert_wb(cpu.writeback, 21, cpu.regfile.registers[20].value)
+    assert_wb(cpu.writeback, 21, cpu.regfile.mem.mem[20].value)
 
     ##################
     # 7FFA7913  //ANDI TEST START :   andi x18 x20 0x7FF  | x18 <= 000006EF
@@ -419,7 +419,7 @@ async def cpu_integration_test(dut):
     await RisingEdge(cpu.clk) # andi x19 x21 0xFFF
     # Check that the result has propagated to regfile from previous instr
     assert_reg_contents(cpu, 18, 0x000006EF)
-    assert_wb(cpu.writeback, 19, cpu.regfile.registers[21].value)
+    assert_wb(cpu.writeback, 19, cpu.regfile.mem.mem[21].value)
     assert_wb(cpu.writeback, 19, 0xFFFFFEEF)
 
     await RisingEdge(cpu.clk) # andi x20 x21 0x000 
@@ -442,7 +442,7 @@ async def cpu_integration_test(dut):
     await RisingEdge(cpu.clk) # invalid op test
 
     wb = Writeback(cpu.writeback.value)
-    assert not cpu.writeback_enable.value
+    assert not cpu.reg_write_port.write_enable.value
     assert cpu.mem_write.value == 0
     assert_reg_contents(cpu, 19, 0xFFFFEEF0)
 
@@ -465,7 +465,7 @@ async def cpu_integration_test(dut):
     await RisingEdge(cpu.clk) # invalid op test
 
     wb = Writeback(cpu.writeback.value)
-    assert not cpu.writeback_enable.value
+    assert not cpu.reg_write_port.write_enable.value
     assert cpu.mem_write.value == 0
     assert_reg_contents(cpu, 20, 0x0FFFFEEF)
 
@@ -486,7 +486,7 @@ async def cpu_integration_test(dut):
     await RisingEdge(cpu.clk) # invalid op test
 
     wb = Writeback(cpu.writeback.value)
-    assert not cpu.writeback_enable.value
+    assert not cpu.reg_write_port.write_enable.value
     assert cpu.mem_write.value == 0
     assert_reg_contents(cpu, 21, 0xFFFFFFEE)
 
@@ -579,7 +579,7 @@ async def cpu_integration_test(dut):
 
     # Check test's init state
     assert bin_to_hex(cpu.instruction.value) == "0088C463"
-    assert bin_to_hex(cpu.regfile.registers[17].value) == "000711F0"
+    assert bin_to_hex(cpu.regfile.mem.mem[17].value) == "000711F0"
 
     # execute, branch should NOT be taken !
     await RisingEdge(cpu.clk) # blt x17 x8 0x8
@@ -591,7 +591,7 @@ async def cpu_integration_test(dut):
     assert not bin_to_hex(cpu.instruction.value) == "00C00413"
     # We verify x8 value was not altered by addi instruction, because it was never meant tyo be executed (sad)
     wb = Writeback(cpu.writeback.value)
-    assert not cpu.writeback_enable.value
+    assert not cpu.reg_write_port.write_enable.value
     assert_reg_contents(cpu, 8, 0xFFFFFFEE)
 
     ##################
@@ -716,7 +716,7 @@ async def cpu_integration_test(dut):
     assert_reg_contents(cpu, 7, 0x00000120)
     assert_wb(cpu.writeback, 1, 0x00000118)
     assert not bin_to_hex(cpu.instruction.value) == "00C00413"
-    assert bin_to_hex(cpu.regfile.registers[8].value) == "FFFFFFEE"
+    assert bin_to_hex(cpu.regfile.mem.mem[8].value) == "FFFFFFEE"
     assert bin_to_hex(cpu.pc.value) == "0000011C"
 
     ################
@@ -793,7 +793,7 @@ async def cpu_integration_test(dut):
     assert_reg_contents(cpu, 7, 0x00000410)
 
     # lw x18, -1(x7) is misaligned, should not write back
-    assert not cpu.writeback_enable.value
+    assert not cpu.reg_write_port.write_enable.value
 
     await RisingEdge(cpu.clk) # lb x18 -1(x7)
 
@@ -802,18 +802,18 @@ async def cpu_integration_test(dut):
     
     wb = Writeback(cpu.writeback.value)
     assert wb.dest_reg == 18
-    assert cpu.writeback_data.value == 0xFFFFFFDE
+    assert cpu.reg_write_port.data.value == 0xFFFFFFDE
 
     await RisingEdge(cpu.clk) # lbu x19 -3(x7)
 
     wb = Writeback(cpu.writeback.value)
     assert wb.dest_reg == 19
-    assert cpu.writeback_data.value == 0x000000BE
+    assert cpu.reg_write_port.data.value == 0x000000BE
 
     await RisingEdge(cpu.clk) # lh x20 -3(x7) 
 
     # lh x20, -3(x7) is misaligned, should not write back
-    assert not cpu.writeback_enable.value
+    assert not cpu.reg_write_port.write_enable.value
 
     await RisingEdge(cpu.clk) # lh x20 -6(x7)
 
@@ -822,13 +822,13 @@ async def cpu_integration_test(dut):
 
     wb = Writeback(cpu.writeback.value)
     assert wb.dest_reg == 20
-    assert cpu.writeback_data.value == 0xFFFFDEAD
+    assert cpu.reg_write_port.data.value == 0xFFFFDEAD
 
     await RisingEdge(cpu.clk) # lhu x21 -3(x7) 
 
     # lhu x21, -3(x7) is misaligned, should not write back
-    assert not cpu.writeback_enable.value
-    assert bin_to_hex(cpu.regfile.registers[21].value) == "FFFFFFEE"
+    assert not cpu.reg_write_port.write_enable.value
+    assert bin_to_hex(cpu.regfile.mem.mem[21].value) == "FFFFFFEE"
 
     await RisingEdge(cpu.clk) # lhu x21 -6(x7)
 
@@ -837,7 +837,7 @@ async def cpu_integration_test(dut):
 
     wb = Writeback(cpu.writeback.value)
     assert wb.dest_reg == 21
-    assert cpu.writeback_data.value == 0x0000DEAD
+    assert cpu.reg_write_port.data.value == 0x0000DEAD
 
     #########
     # Store-write
@@ -866,7 +866,7 @@ async def cpu_integration_test(dut):
 
     wb = Writeback(cpu.writeback.value)
     assert wb.dest_reg == 4
-    assert cpu.writeback_data.value == 0x00000100
+    assert cpu.reg_write_port.data.value == 0x00000100
 
     ################################
     # 800003b7  // LED DRIVER TEST:   lui x7, 0x80000     | x7 <= 0x8000000

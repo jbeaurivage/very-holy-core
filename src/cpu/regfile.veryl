@@ -1,37 +1,31 @@
 module Regfile (
     // Basics
-    clk  : input clock,
-    rst_n: input reset,
-
-    // Reads
-    address1  : input  logic<5> ,
-    address2  : input  logic<5> ,
-    read_data1: output logic<32>,
-    read_data2: output logic<32>,
+    clk: input clock,
+    rst: input reset,
 
     // Writes
-    write_enable: input bool     ,
-    write_data  : input logic<32>,
-    address3    : input logic<5> ,
+    write: modport memutils::ScratchpadRamPort::write_slave,
+
+    // Reads
+    read: modport memutils::ScratchpadRamPort::read_slave [2],
 ) {
-    var registers: logic<32> [32];
 
-    // Async read logic
-    assign read_data1 = registers[address1];
-    assign read_data2 = registers[address2];
+    inst write_port: memutils::ScratchpadRamPort #( DATA_WIDTH: 32, ADDR_WIDTH: 5 );
 
-    // Write logic
-    always_ff {
-        // Init regs to 0 at reset
-        if_reset {
-            for i: u8 in 0..32 {
-                registers[i[4:0]] = 32'b0;
-            }
-        } else {
-            // Write, except on 0, reserved for a zero const according to RISC-V spec
-            if write_enable && address3 != 0 {
-                registers[address3] = write_data;
-            }
-        }
-    }
+    // Disable writes to zero register
+    assign write_port.write_enable = if write_port.address != 0 ? write.write_enable : false;
+    // Rest of write signals go through as is
+    assign write_port.address = write.address;
+    assign write_port.data    = write.data;
+
+    inst mem: memutils::ScratchpadRam #(
+        DATA_WIDTH: 32,
+        DEPTH     : 32,
+        READ_PORTS: 2 ,
+    ) (
+        clk              ,
+        rst              ,
+        write: write_port,
+        read : read      ,
+    );
 }

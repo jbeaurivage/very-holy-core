@@ -97,7 +97,7 @@ module Soc::<ROM: MemRegion, RAM: MemRegion, PERIPH: MemRegion> #(
     );
 
     inst periph_mux: PeripheralMux (
-        clk,
+        clk       ,
         rst: rst_n,
 
         master: periph_port,

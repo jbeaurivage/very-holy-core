@@ -99,9 +99,7 @@ module Cpu (
         second_add_source  ,
     );
 
-    // Regfile
-    let reg_read_addr1: logic<5> = instruction[19:15];
-    let reg_read_addr2: logic<5> = instruction[24:20];
+    // -- Register file and writeback --
 
     // The data that's currently being written back to the regfile.
     // Comes to us from the last cycle through the pipeline.
@@ -109,12 +107,8 @@ module Cpu (
     // Prepare the next writeback in the pipeline
     var next_writeback: Writeback;
 
-    // The actual data which will be written back to the register
-    var writeback_data: logic<32>;
     // Destination register address for writebacks
     let next_wb_dest_reg: logic<5> = instruction[11:7];
-    // Is writeback enabled this cycle?
-    var writeback_enable: bool;
 
     inst wb_controller: WritebackControl (
         clk                                  ,
@@ -130,29 +124,30 @@ module Cpu (
         mem_read_data   ,
         mem_read_valid  ,
 
-        writeback                       ,
-        next_writeback                  ,
-        wb_data       : writeback_data  ,
-        wb_enable     : writeback_enable,
+        writeback       ,
+        next_writeback  ,
+        // The actual data which will be written back to the register
+        wb_data: reg_write_port.data,
+        // Is writeback to registers enabled this cycle?
+        wb_enable: reg_write_port.write_enable,
     );
 
-    // Register file with writeback
-    var reg_read_data1: logic<32>;
-    var reg_read_data2: logic<32>;
+    // Regfile writes
+    inst reg_write_port: memutils::ScratchpadRamPort #( DATA_WIDTH: 32, ADDR_WIDTH: 5 );
+
+    assign reg_write_port.address = writeback.dest_reg;
+
+    // Regfile reads, dual-port
+    inst reg_read_ports: memutils::ScratchpadRamPort [2] #( DATA_WIDTH: 32, ADDR_WIDTH: 5 );
+
+    assign reg_read_ports[0].address = instruction[19:15];
+    assign reg_read_ports[1].address = instruction[24:20];
 
     inst regfile: Regfile (
-        clk    ,
-        rst_n  ,
-
-        address1: reg_read_addr1,
-        address2: reg_read_addr2,
-
-        read_data1: reg_read_data1,
-        read_data2: reg_read_data2,
-
-        write_enable: writeback_enable  ,
-        write_data  : writeback_data    ,
-        address3    : writeback.dest_reg,
+        clk                  ,
+        rst  : rst_n         ,
+        write: reg_write_port,
+        read : reg_read_ports,
     );
 
     // Writeback multiplexer
@@ -163,15 +158,11 @@ module Cpu (
         clk    ,
         rst_n  ,
 
-        address1      : reg_read_addr1,
-        address2      : reg_read_addr2,
-        reg_read_data1                ,
-        reg_read_data2                ,
+        reg_read: reg_read_ports,
 
-        writeback_enable  ,
-        writeback_data    ,
-        mem_read_data     ,
-        writeback         ,
+        writeback_enable: reg_write_port.write_enable,
+        mem_read_data                                ,
+        writeback                                    ,
 
         operand1  ,
         operand2  ,

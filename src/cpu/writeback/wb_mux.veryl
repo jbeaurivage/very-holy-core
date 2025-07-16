@@ -9,14 +9,10 @@ module WritebackMux (
     rst_n: input reset,
 
     // -- Regfile incoming signals --
-    address1      : input logic<5> ,
-    address2      : input logic<5> ,
-    reg_read_data1: input logic<32>,
-    reg_read_data2: input logic<32>,
+    reg_read: modport memutils::ScratchpadRamPort::read_observer [2],
 
     // -- Writeback input signals --
     writeback_enable: input bool                ,
-    writeback_data  : input logic           <32>,
     mem_read_data   : input logic           <32>,
     writeback       : input types::Writeback    ,
 
@@ -26,24 +22,24 @@ module WritebackMux (
 ) {
 
     always_comb {
-        if writeback_enable && address1 == writeback.dest_reg {
+        if writeback_enable && reg_read[0].address == writeback.dest_reg {
             if writeback.is_mem_read {
                 operand1 = mem_read_data;
             } else {
                 operand1 = writeback.data;
             }
         } else {
-            operand1 = reg_read_data1;
+            operand1 = reg_read[0].data;
         }
 
-        if writeback_enable && address2 == writeback.dest_reg {
+        if writeback_enable && reg_read[1].address == writeback.dest_reg {
             if writeback.is_mem_read {
                 operand2 = mem_read_data;
             } else {
                 operand2 = writeback.data;
             }
         } else {
-            operand2 = reg_read_data2;
+            operand2 = reg_read[1].data;
         }
 
     }

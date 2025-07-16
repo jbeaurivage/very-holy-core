@@ -4,7 +4,8 @@ version = "0.1.0"
 authors = ["Justin Beaurivage <code@beaurivage.io>"]
 
 [dependencies]
-# memory = { path = "./memory" }
+memutils = { version = "0.2.1", git = "https://github.com/jbeaurivage/memutils-veryl.git" }
+# memutils = { version = "0.2.1", path = "/home/wearable-avionics/UQTR/hardware/memutils-veryl" }
 uarty = { path = "../uarty" }
 
 [build]

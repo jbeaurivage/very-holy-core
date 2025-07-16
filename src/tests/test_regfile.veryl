@@ -1,2 +1,20 @@
-#[test(test_regfile, Regfile)]
+module TestRegfile (
+    clk: input clock,
+    rst: input reset,
+) {
+
+    // Test with dual read ports
+    inst read_ports: memutils::ScratchpadRamPort [2] #( DATA_WIDTH: 32, ADDR_WIDTH: 5 );
+    inst write_port: memutils::ScratchpadRamPort #( DATA_WIDTH: 32, ADDR_WIDTH: 5 );
+
+    inst regfile: Regfile (
+        clk  ,
+        rst  ,
+
+        read : read_ports,
+        write: write_port,
+    );
+}
+
+#[test(test_regfile, TestRegfile)]
 include (cocotb, "../../tb/regfile.py");
