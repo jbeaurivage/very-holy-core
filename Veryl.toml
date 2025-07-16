@@ -17,6 +17,7 @@ target = { type = "directory", path = "target/veryl" }
 
 [test]
 waveform_target = { type = "directory", path = "target/waveform" }
+waveform_format = "fst"
 include_files = [
     "tb/test_cpu/test_dmem.hex",
     "tb/test_cpu/test_imem.hex",

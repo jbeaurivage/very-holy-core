@@ -8,7 +8,7 @@ vivado:
     vivado -nolog -nojournal -mode tcl -source {{justfile_directory()}}/init_project.tcl
 
 wave file:
-    surfer {{justfile_directory()}}/target/waveform/{{file}}.vcd >& /dev/null & 
+    surfer {{justfile_directory()}}/target/waveform/{{file}}.fst >& /dev/null & 
 
 build:
     veryl build --quiet
