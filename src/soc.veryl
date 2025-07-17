@@ -33,29 +33,30 @@ module Soc::<ROM: MemRegion, RAM: MemRegion, PERIPH: MemRegion> #(
 
 
     // Port A is for instruction memory
-    inst rom_port_a: MemoryBus #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
+    inst rom_port_a: memutils::BramPort #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
 
     // Port B is to allow reads to imem from RAM
     // using regular data memory instructions
-    inst rom_port_b: MemoryBus #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
+    inst rom_port_b: memutils::BramPort #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
 
-    inst ram_port: MemoryBus #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
+    inst ram_port: memutils::BramPort #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
 
-    inst periph_port: MemoryBus #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
+    inst periph_port: memutils::BramPort #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
 
     // The fetched instruction we will decode and execute.
     var instruction: logic<32>;
     var imem_addr  : logic<32>;
 
     // Instruction memory. Acts as a ROM.
-    inst rom: DualPortBlockRam #(
+    inst rom: memutils::DualPortBlockRam #(
         INIT_FILE : ROM::INIT_FILE ,
         NUM_COL                    ,
         COL_WIDTH                  ,
         RAM_DEPTH : ROM::SIZE / 4  ,
         ADDR_WIDTH: ROM::ADDR_WIDTH,
     ) (
-        clk  ,
+        clk_a: clk,
+        clk_b: clk,
 
         port_a: rom_port_a,
         port_b: rom_port_b,
@@ -67,15 +68,15 @@ module Soc::<ROM: MemRegion, RAM: MemRegion, PERIPH: MemRegion> #(
     var dmem_read_data        : logic<32>;
 
     // Data memory. Acts as a RAM.
-    inst ram: SinglePortBlockRam #(
+    inst ram: memutils::SinglePortBlockRam #(
         INIT_FILE : RAM::INIT_FILE ,
         NUM_COL                    ,
         COL_WIDTH                  ,
         RAM_DEPTH : RAM::SIZE / 4  ,
         ADDR_WIDTH: RAM::ADDR_WIDTH,
     ) (
-        clk    ,
-        rst_n  ,
+        clk       ,
+        rst: rst_n,
 
         port: ram_port,
     );
@@ -108,7 +109,7 @@ module Soc::<ROM: MemRegion, RAM: MemRegion, PERIPH: MemRegion> #(
 
     var gpo_out: logic<8>;
 
-    inst gpo_port: MemoryBus #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
+    inst gpo_port: memutils::BramPort #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
     inst gpo: Gpo #(
         NUM_PINS: 8,
     ) (
@@ -124,5 +125,5 @@ module Soc::<ROM: MemRegion, RAM: MemRegion, PERIPH: MemRegion> #(
     assign led = gpo_out;
     /* verilator lint_on WIDTHTRUNC */
 
-    inst uart_port: MemoryBus #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
+    inst uart_port: memutils::BramPort #( ADDR_WIDTH: 32, NUM_COL, COL_WIDTH );
 }

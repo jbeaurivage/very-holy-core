@@ -26,10 +26,10 @@ module MemoryController::<ROM: MemRegion, RAM: MemRegion, PERIPH: MemRegion> (
 
     ram_error: output memory::Error,
 
-    rom_port_a : modport MemoryBus::master,
-    rom_port_b : modport MemoryBus::master,
-    ram_port   : modport MemoryBus::master,
-    periph_port: modport MemoryBus::master,
+    rom_port_a : modport memutils::BramPort::master,
+    rom_port_b : modport memutils::BramPort::master,
+    ram_port   : modport memutils::BramPort::master,
+    periph_port: modport memutils::BramPort::master,
 ) {
 
     // Inhibit misaligned requests

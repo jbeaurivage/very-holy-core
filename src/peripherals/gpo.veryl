@@ -7,7 +7,7 @@ module Gpo #(
     clk  : input clock,
     rst_n: input reset,
 
-    bus: modport MemoryBus::slave,
+    bus: modport memutils::BramPort::slave,
 
     gpo_out: output logic<NUM_PINS>,
 ) {

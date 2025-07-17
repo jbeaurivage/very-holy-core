@@ -19,10 +19,10 @@ module PeripheralMux (
     clk: input clock,
     rst: input reset,
 
-    master: modport MemoryBus::slave,
+    master: modport memutils::BramPort::slave,
 
-    gpo_bus : modport MemoryBus::master,
-    uart_bus: modport MemoryBus::master,
+    gpo_bus : modport memutils::BramPort::master,
+    uart_bus: modport memutils::BramPort::master,
 ) {
     enum PeripheralSelect: logic<2> {
         gpo = 2'b00,

@@ -4,7 +4,7 @@ from cocotb.triggers import RisingEdge, Timer
 import random
 
 @cocotb.test()
-async def scratchpad_ram_test(dut):
+async def regfile_test(dut):
     # Start a 10 ns clock
     cocotb.start_soon(Clock(dut.clk, 10, units="ns").start())
     await RisingEdge(dut.clk)

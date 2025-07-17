@@ -6,7 +6,7 @@ module Uart #(
     clk: input clock,
     rst: input reset,
 
-    bus: modport MemoryBus::slave,
+    bus: modport memutils::BramPort::slave,
 
     rx: input  logic,
     tx: output logic,

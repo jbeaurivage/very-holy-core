@@ -5,7 +5,7 @@ module TestUart (
     rx: input  logic,
     tx: output logic,
 ) {
-    inst bus: MemoryBus #( ADDR_WIDTH: 32, NUM_COL: 4, COL_WIDTH: 8 );
+    inst bus: memutils::BramPort #( ADDR_WIDTH: 32, NUM_COL: 4, COL_WIDTH: 8 );
 
     inst uart: Uart #(
         CLOCK_FREQ: 100_000_000,
