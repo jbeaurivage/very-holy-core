@@ -1,0 +1,54 @@
+pub enum ImmediateSource {
+    I_type,
+    S_type,
+    B_type,
+    J_type,
+    U_type,
+    // Reserved,
+}
+
+// impl ImmediateSource {
+//     pub fn from_uint(int: uint<3>) -> Self {
+//         match int {
+//             0b000 => ImmediateSource::I_type ,
+//             0b001 => ImmediateSource::S_type ,
+//             0b010 => ImmediateSource::B_type ,
+//             0b011 => ImmediateSource::J_type ,
+//             0b100 => ImmediateSource::U_type ,
+//             _ => ImmediateSource::Reserved,
+//         }
+//     }
+//
+//     pub fn as_uint(self) -> uint<3> {
+//         match self {
+//             ImmediateSource::I_type => 0b000 ,
+//             ImmediateSource::S_type => 0b001,
+//             ImmediateSource::B_type => 0b010,
+//             ImmediateSource::J_type => 0b011,
+//             ImmediateSource::U_type => 0b100,
+//             ImmediateSource::Reserved => 0b110,
+//         }
+//     }
+// }
+
+pub fn sign_extend(raw_src: uint<25>, imm_src: ImmediateSource) -> int<32> {
+    let bits = raw_src.as_bits();
+
+    match imm_src {
+        ImmediateSource::I_type => sext(bits[13..25].as_int()),
+
+        ImmediateSource::S_type => sext(bits[0..5].concat(bits[18..25]).as_int()),
+
+        ImmediateSource::B_type => sext([false]
+            .concat(bits[1..5])
+            .concat(bits[18..24])
+            .concat([bits[0]]).as_int()),
+
+        ImmediateSource::J_type => sext([false]
+            .concat(bits[14..24])
+            .concat([bits[13]])
+            .concat(bits[5..13]).as_int()),
+
+        ImmediateSource::U_type => [false; 12].concat(bits[5..25]).as_int(),
+    }
+}

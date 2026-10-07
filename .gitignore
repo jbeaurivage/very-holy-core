@@ -20,3 +20,14 @@ dependencies/
 .build/
 target/
 *.f
+
+.envrc
+.direnv/
+.surfer
+build/
+.vscode
+
+
+# Added by cargo
+
+/target

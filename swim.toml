@@ -1,0 +1,5 @@
+name = "test_spade"
+
+[simulation]
+testbench_dir = "test"
+python_deps = ["numpy"]
