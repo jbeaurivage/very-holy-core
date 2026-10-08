@@ -1,0 +1,308 @@
+use lib::alu::AluControl;
+use lib::immediates::ImmediateSource;
+
+/// A type safe wrapper to ensure we don't mix instructions and data unintentionally. This
+/// is the target of all decoding methods
+pub(lib) struct Insn {
+    inner: uint<32>
+}
+
+impl Insn {
+    #[inline]
+    fn as_bits(self) -> [bool; 32] {
+        self.inner.as_bits()
+    }
+
+    fn opcode(self) -> uint<7> {
+        self.as_bits()[0..7].to_uint()
+    }
+
+    fn func3(self) -> uint<3> {
+        self.as_bits()[12..15].to_uint()
+    }
+
+    fn func7(self) -> uint<7> {
+        self.as_bits()[25..32].to_uint()
+    }
+
+    fn rs1(self) -> uint<5> {
+        self.as_bits()[15..20].to_uint()
+    }
+
+    fn rs2(self) -> uint<5> {
+        self.as_bits()[20..25].to_uint()
+    }
+
+    fn rd(self) -> uint<5> {
+        self.as_bits()[7..12].to_uint()
+    }
+
+    fn is_ebreak(self) -> bool {
+        self.inner == 0b00000000000100000000000001110011
+    }
+
+    fn is_ecall(self) -> bool {
+        self.inner == 0b00000000000000000000000001110011
+    }
+}
+
+pub enum Opcode {
+    RType,
+    ITypeAlu,
+    ITypeLoad,
+    SType,
+    BType,
+    UTypeLui,
+    UTypeAuipc,
+    JType,
+    JTypeJalr,
+    Unknown,
+}
+
+impl Opcode {
+    fn from_uint(opcode: uint<7>) -> Self {
+        match opcode {
+            0b0110011 => Opcode::RType,
+            0b0010011 => Opcode::ITypeAlu,
+            0b0000011 => Opcode::ITypeLoad,
+            0b0100011 => Opcode::SType,
+            0b1100011 => Opcode::BType,
+            0b0110111 => Opcode::UTypeLui,
+            0b0010111 => Opcode::UTypeAuipc,
+            0b1101111 => Opcode::JType,
+            0b1100111 => Opcode::JTypeJalr,
+            _ => Opcode::Unknown,
+        }
+    }
+}
+
+pub enum AluSource {
+    Src2,
+    Immediate,
+}
+
+pub enum WritebackSrc {
+    AluResult,
+    MemRead,
+    PcPlus4,
+    UpperImm,
+}
+
+pub enum SecondAddSource {
+    PcPlusImmediate,
+    Reg1PlusImmediate,
+    RawImmediate,
+}
+
+pub struct ControlOut {
+    alu_control: AluControl,
+    imm_src: ImmediateSource,
+    alu_source: AluSource,
+    mem_write: bool,
+    mem_read: bool,
+    reg_write: bool,
+    write_back_source: WritebackSrc,
+    second_add_source: SecondAddSource,
+    branch: bool,
+    jump: bool,
+}
+
+/// Decode R-types and I-types, which share the same func3 table
+fn alu_math(f3: uint<3>, f7: uint<7>, is_r_type: bool) -> AluControl {
+    match f3 {
+        // add and sub: 2 scenarios here:
+        // - R-TYPE : either add or sub and we need to a check for that in bit 5 of func7
+        // - I-Type : addi -> we use add arithmetic
+        0b000 => if is_r_type && f7.as_bits()[5] { AluControl::Sub } else { AluControl::Add },
+        0b001 => AluControl::Sll,
+        0b010 => AluControl::Slt,
+        0b011 => AluControl::Sltu,
+        0b100 => AluControl::Xor,
+        0b101 => match f7 {
+            0b0000000 => AluControl::Srl,
+            0b0100000 => AluControl::Sra,
+            _ => AluControl::Unknown,
+        },
+        0b110 => AluControl::Or,
+        0b111 => AluControl::And,
+        _ => AluControl::Unknown,
+    }
+}
+
+fn alu_decode(opcode: Opcode, f3: uint<3>, f7: uint<7>) -> AluControl {
+    match opcode {
+        Opcode::RType => alu_math(f3, f7, true),
+        Opcode::ITypeAlu => alu_math(f3, f7, false),
+        Opcode::BType => match f3 {
+            0b000 => AluControl::Sub,   // beq
+            0b001 => AluControl::Sub,   // bne
+            0b100 => AluControl::Slt,   // blt
+            0b101 => AluControl::Slt,   // bge
+            0b110 => AluControl::Sltu,  // bltu
+            0b111 => AluControl::Sltu,  // bgeu
+            _ => AluControl::Unknown,
+        },
+        // loads, stores, jumps, lui/auipc
+        _ => AluControl::Add,
+    }
+}
+
+pub(lib) fn decode(insn: Insn) -> ControlOut {
+    let opcode = Opcode::from_uint(insn.opcode());
+    let f3 = insn.func3();
+    let f7 = insn.func7();
+    let alu_control = alu_decode(opcode, f3, f7);
+
+    // slli/srli/srai carry a funct7 in the immediate; invalid encodings must not write
+    let valid_shift = match f3 {
+        0b001 => f7 == 0b0000000,
+        0b101 => f7 == 0b0000000 || f7 == 0b0100000,
+        _ => true,
+    };
+
+    match opcode {
+        Opcode::RType => ControlOut$(
+            alu_control: alu_control,
+            imm_src: ImmediateSource::I_type, // irrelevant
+            alu_source: AluSource::Src2,
+            mem_write: false,
+            mem_read: false,
+            reg_write: true,
+            write_back_source: WritebackSrc::AluResult,
+            second_add_source: SecondAddSource::PcPlusImmediate, // irrelevant
+            branch: false,
+            jump: false,
+        ),
+
+        Opcode::ITypeAlu => ControlOut$(
+            alu_control: alu_control,
+            imm_src: ImmediateSource::I_type,
+            alu_source: AluSource::Immediate,
+            mem_write: false,
+            mem_read: false,
+            reg_write: valid_shift,
+            write_back_source: WritebackSrc::AluResult,
+            second_add_source: SecondAddSource::PcPlusImmediate, // irrelevant
+            branch: false,
+            jump: false,
+        ),
+
+        Opcode::ITypeLoad => ControlOut$(
+            alu_control: alu_control,
+            imm_src: ImmediateSource::I_type,
+            alu_source: AluSource::Immediate,
+            mem_write: false,
+            mem_read: true,
+            reg_write: true,
+            write_back_source: WritebackSrc::MemRead,
+            second_add_source: SecondAddSource::PcPlusImmediate, // irrelevant
+            branch: false,
+            jump: false,
+        ),
+
+        Opcode::SType => ControlOut$(
+            alu_control: alu_control,
+            imm_src: ImmediateSource::S_type,
+            alu_source: AluSource::Immediate,
+            mem_write: true,
+            mem_read: false,
+            reg_write: false,
+            write_back_source: WritebackSrc::AluResult, // irrelevant
+            second_add_source: SecondAddSource::PcPlusImmediate, // irrelevant
+            branch: false,
+            jump: false,
+        ),
+
+        Opcode::BType => ControlOut$(
+            alu_control: alu_control,
+            imm_src: ImmediateSource::B_type,
+            alu_source: AluSource::Src2,
+            mem_write: false,
+            mem_read: false,
+            reg_write: false,
+            write_back_source: WritebackSrc::AluResult, // irrelevant
+            second_add_source: SecondAddSource::PcPlusImmediate,
+            branch: true,
+            jump: false,
+        ),
+
+        Opcode::UTypeLui => ControlOut$(
+            alu_control: alu_control,
+            imm_src: ImmediateSource::U_type,
+            alu_source: AluSource::Src2, // irrelevant
+            mem_write: false,
+            mem_read: false,
+            reg_write: true,
+            write_back_source: WritebackSrc::UpperImm,
+            second_add_source: SecondAddSource::RawImmediate,
+            branch: false,
+            jump: false,
+        ),
+
+        Opcode::UTypeAuipc => ControlOut$(
+            alu_control: alu_control,
+            imm_src: ImmediateSource::U_type,
+            alu_source: AluSource::Src2, // irrelevant
+            mem_write: false,
+            mem_read: false,
+            reg_write: true,
+            write_back_source: WritebackSrc::UpperImm,
+            second_add_source: SecondAddSource::PcPlusImmediate,
+            branch: false,
+            jump: false,
+        ),
+
+        Opcode::JType => ControlOut$(
+            alu_control: alu_control,
+            imm_src: ImmediateSource::J_type,
+            alu_source: AluSource::Src2,
+            mem_write: false,
+            mem_read: false,
+            reg_write: true,
+            write_back_source: WritebackSrc::PcPlus4,
+            second_add_source: SecondAddSource::PcPlusImmediate,
+            branch: false,
+            jump: true,
+        ),
+
+        Opcode::JTypeJalr => ControlOut$(
+            alu_control: alu_control,
+            imm_src: ImmediateSource::I_type,
+            alu_source: AluSource::Src2,
+            mem_write: false,
+            mem_read: false,
+            reg_write: true,
+            write_back_source: WritebackSrc::PcPlus4,
+            second_add_source: SecondAddSource::Reg1PlusImmediate,
+            branch: false,
+            jump: true,
+        ),
+
+        // Everything else: must not write registers, write memory, branch or jump
+        Opcode::Unknown => ControlOut$(
+            alu_control: alu_control,
+            imm_src: ImmediateSource::I_type,
+            alu_source: AluSource::Src2,
+            mem_write: false,
+            mem_read: false,
+            reg_write: false,
+            write_back_source: WritebackSrc::PcPlus4,
+            second_add_source: SecondAddSource::PcPlusImmediate,
+            branch: false,
+            jump: false,
+        ),
+    }
+}
+
+pub(lib) fn pc_source(branch: bool, jump: bool, f3: uint<3>, alu_zero: bool, alu_less_than: bool) -> bool {
+    let assert_branch = match f3 {
+        0b000 => alu_zero,       // beq
+        0b001 => !alu_zero,      // bne
+        0b100 => alu_less_than,   // blt
+        0b110 => alu_less_than,   // bltu
+        0b101 => !alu_less_than,  // bge
+        0b111 => !alu_less_than,  // bgeu
+        _ => false,
+    };
+    (assert_branch && branch) || jump
+}

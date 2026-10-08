@@ -1,1 +1,3 @@
 mod immediates;
+mod control;
+mod alu;

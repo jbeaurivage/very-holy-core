@@ -1,0 +1,74 @@
+use lib::control::Insn;
+
+pub (lib) enum AluControl {
+    Add,
+    Sub,
+    And,
+    Or,
+    Sll,
+    Slt,
+    Srl,
+    Sltu,
+    Xor,
+    Sra,
+    Unknown,
+}
+
+pub struct AluResult {
+    result: uint<32>,
+    zero: bool,
+    // Only valid for slt/sltu, undefined otherwise
+    less_than: bool,
+}
+
+pub(lib) fn alu(ctrl: AluControl, opa: uint<32>, opb: uint<32>) -> AluResult {
+    let shift_amt: uint<5> = trunc(opb);
+    let shift_amt: uint<32> = zext(shift_amt);
+
+    let subtract = match ctrl {
+        AluControl::Sub => true,
+        AluControl::Slt => true,
+        AluControl::Sltu => true,
+        _ => false,
+    };
+    let is_signed = match ctrl {
+        AluControl::Slt => true,
+        _ => false,
+    };
+
+    // Use one 33-bit shared adder to perform both addition and subtraction.
+    // When doing subtraction, opb is first inverted
+    // For slt/sltu, bit 32 gives the final result
+
+    // Prepare opb to be inverted if needed
+    let opb_adder = if subtract { ~opb } else { opb };
+    let cin = if subtract { 1 } else { 0 };
+    let sum33 = opa + opb_adder + cin;
+
+    let sum: uint<32> = trunc(sum33);
+
+    // When subtracting, carry-out = 1 means "no borrow", i.e. opa >= opb (unsigned)
+    let sign_differs = opa.as_bits()[31] != opb.as_bits()[31];
+    let less_than = !sum33.as_bits()[32] != (is_signed && sign_differs);
+    let compare: uint<32> = if less_than { 1 } else { 0 };
+
+    let result = match ctrl {
+        AluControl::Add => sum,
+        AluControl::Sub => sum,
+        AluControl::Slt => compare,
+        AluControl::Sltu => compare,
+        AluControl::And => opa & opb,
+        AluControl::Or => opa | opb,
+        AluControl::Xor => opa ^ opb,
+        AluControl::Sll => opa << shift_amt,
+        AluControl::Srl => opa >> shift_amt,
+        AluControl::Sra => (opa.as_int() >>> shift_amt.as_int()).as_uint(),
+        AluControl::Unknown => 0,
+    };
+
+    AluResult$(
+        result: result,
+        zero: result == 0,
+        less_than: less_than,
+    )
+}

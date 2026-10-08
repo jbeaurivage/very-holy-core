@@ -1,4 +1,4 @@
-name = "test_spade"
+name = "holy_spade"
 
 [simulation]
 testbench_dir = "test"
