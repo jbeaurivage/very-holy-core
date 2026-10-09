@@ -1,6 +1,8 @@
 use lib::alu::AluControl;
 use lib::immediates::ImmediateSource;
 
+use std::undef::undef;
+
 /// A type safe wrapper to ensure we don't mix instructions and data unintentionally. This
 /// is the target of all decoding methods
 pub(lib) struct Insn {
@@ -163,13 +165,13 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
     match opcode {
         Opcode::RType => ControlOut$(
             alu_control: alu_control,
-            imm_src: ImmediateSource::I_type, // irrelevant
+            imm_src: undef(),
             alu_source: AluSource::Src2,
             mem_write: false,
             mem_read: false,
             reg_write: true,
             write_back_source: WritebackSrc::AluResult,
-            second_add_source: SecondAddSource::PcPlusImmediate, // irrelevant
+            second_add_source: undef(),
             branch: false,
             jump: false,
         ),
@@ -182,7 +184,7 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
             mem_read: false,
             reg_write: valid_shift,
             write_back_source: WritebackSrc::AluResult,
-            second_add_source: SecondAddSource::PcPlusImmediate, // irrelevant
+            second_add_source: undef(),
             branch: false,
             jump: false,
         ),
@@ -195,7 +197,7 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
             mem_read: true,
             reg_write: true,
             write_back_source: WritebackSrc::MemRead,
-            second_add_source: SecondAddSource::PcPlusImmediate, // irrelevant
+            second_add_source: undef(),
             branch: false,
             jump: false,
         ),
@@ -207,8 +209,8 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
             mem_write: true,
             mem_read: false,
             reg_write: false,
-            write_back_source: WritebackSrc::AluResult, // irrelevant
-            second_add_source: SecondAddSource::PcPlusImmediate, // irrelevant
+            write_back_source: undef(),
+            second_add_source: undef(),
             branch: false,
             jump: false,
         ),
@@ -220,7 +222,7 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
             mem_write: false,
             mem_read: false,
             reg_write: false,
-            write_back_source: WritebackSrc::AluResult, // irrelevant
+            write_back_source: undef(),
             second_add_source: SecondAddSource::PcPlusImmediate,
             branch: true,
             jump: false,
@@ -229,7 +231,7 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
         Opcode::UTypeLui => ControlOut$(
             alu_control: alu_control,
             imm_src: ImmediateSource::U_type,
-            alu_source: AluSource::Src2, // irrelevant
+            alu_source: undef(),
             mem_write: false,
             mem_read: false,
             reg_write: true,
@@ -242,7 +244,7 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
         Opcode::UTypeAuipc => ControlOut$(
             alu_control: alu_control,
             imm_src: ImmediateSource::U_type,
-            alu_source: AluSource::Src2, // irrelevant
+            alu_source: undef(),
             mem_write: false,
             mem_read: false,
             reg_write: true,
@@ -278,16 +280,16 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
             jump: true,
         ),
 
-        // Everything else: must not write registers, write memory, branch or jump
+        // Everything else: must not write registers, access memory, branch or jump
         Opcode::Unknown => ControlOut$(
             alu_control: alu_control,
-            imm_src: ImmediateSource::I_type,
-            alu_source: AluSource::Src2,
+            imm_src: undef(),
+            alu_source: undef(),
             mem_write: false,
             mem_read: false,
             reg_write: false,
-            write_back_source: WritebackSrc::PcPlus4,
-            second_add_source: SecondAddSource::PcPlusImmediate,
+            write_back_source: undef(),
+            second_add_source: undef(),
             branch: false,
             jump: false,
         ),
