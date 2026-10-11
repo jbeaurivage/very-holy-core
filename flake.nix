@@ -25,6 +25,7 @@
         {
           devShells.default = pkgs.mkShell {
             nativeBuildInputs = with pkgs; [
+              # Use the cargo version of swim
               swim
               verilator
               uv

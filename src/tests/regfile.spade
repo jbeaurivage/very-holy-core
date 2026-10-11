@@ -1,0 +1,20 @@
+struct RegfileOut {
+    r0: uint<32>,
+    r1: uint<32>,
+}
+
+entity regfile(
+    clk: clock,
+    read_addr0: uint<5>,
+    read_addr1: uint<5>,
+    write_addr: uint<5>,
+    write_enable: bool,
+    write_data: uint<32>,
+) -> RegfileOut {
+    let (rp0, rp1, wp) = inst lib::regfile::regfile(clk);
+    set rp0.addr = read_addr0;
+    set rp1.addr = read_addr1;
+    set wp.addr = write_addr;
+    set wp.write = if write_enable { Some(write_data) } else { None() };
+    RegfileOut$(r0: rp0.data, r1: rp1.data)
+}

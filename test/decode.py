@@ -22,13 +22,8 @@ SLT, SLTU, UNKNOWN = (f"AluControl::{n}" for n in ("Slt", "Sltu", "Unknown"))
 I_TYPE, S_TYPE, B_TYPE, J_TYPE, U_TYPE = (
     f"ImmediateSource::{n}" for n in ("I_type", "S_type", "B_type", "J_type", "U_type")
 )
-SRC2, IMMEDIATE = "AluSource::Src2", "AluSource::Immediate"
 WB_ALU, WB_MEM, WB_PC4, WB_UPPER = (
     f"WritebackSrc::{n}" for n in ("AluResult", "MemRead", "PcPlus4", "UpperImm")
-)
-PC_PLUS_IMM, REG1_PLUS_IMM, RAW_IMM = (
-    f"SecondAddSource::{n}"
-    for n in ("PcPlusImmediate", "Reg1PlusImmediate", "RawImmediate")
 )
 
 N_RANDOM = 20
@@ -48,14 +43,10 @@ def insn_word(opcode: int, f3: int | None = None, f7: int | None = None) -> int:
     )
 
 
-# Flags that are meaningful for every instruction; tests override what differs
-BASE = {
-    "mem_write": False,
-    "mem_read": False,
-    "reg_write": False,
-    "branch": False,
-    "jump": False,
-}
+# Flags that are meaningful for every instruction; tests override what differs.
+# imm_src / write_back_source are undef() for some opcodes, so they are only
+# asserted where the decoder actually defines them.
+BASE = dict(mem_write=False, mem_read=False, reg_write=False, branch=False, jump=False)
 
 
 async def run(s: SpadeExt, word: int, **expected):
@@ -74,7 +65,6 @@ async def load_test(dut):  # lw
             insn_word(OP_LOAD, f3=0b010),
             alu_control=ADD,
             imm_src=I_TYPE,
-            alu_source=IMMEDIATE,
             mem_read=True,
             reg_write=True,
             write_back_source=WB_MEM,
@@ -90,7 +80,6 @@ async def store_test(dut):  # sw
             insn_word(OP_S, f3=0b010),
             alu_control=ADD,
             imm_src=S_TYPE,
-            alu_source=IMMEDIATE,
             mem_write=True,
         )
 
@@ -118,7 +107,6 @@ async def r_type_test(dut):
                 s,
                 insn_word(OP_R, f3=f3, f7=f7),
                 alu_control=alu,
-                alu_source=SRC2,
                 reg_write=True,
                 write_back_source=WB_ALU,
             )
@@ -145,7 +133,6 @@ async def i_type_alu_test(dut):
                 insn_word(OP_I_ALU, f3=f3),
                 alu_control=alu,
                 imm_src=I_TYPE,
-                alu_source=IMMEDIATE,
                 reg_write=True,
                 write_back_source=WB_ALU,
             )
@@ -167,7 +154,6 @@ async def shift_immediate_test(dut):
                 insn_word(OP_I_ALU, f3=f3, f7=f7),
                 alu_control=alu,
                 imm_src=I_TYPE,
-                alu_source=IMMEDIATE,
                 reg_write=valid,
                 write_back_source=WB_ALU,
             )
@@ -189,12 +175,7 @@ async def branch_test(dut):
     for name, f3, alu in B_TYPE_OPS:
         for _ in range(N_RANDOM):
             await run(
-                s,
-                insn_word(OP_B, f3=f3),
-                alu_control=alu,
-                imm_src=B_TYPE,
-                alu_source=SRC2,
-                branch=True,
+                s, insn_word(OP_B, f3=f3), alu_control=alu, imm_src=B_TYPE, branch=True
             )
     # funct3 2 and 3 aren't valid branches
     for f3 in (0b010, 0b011):
@@ -212,7 +193,6 @@ async def jal_test(dut):
             reg_write=True,
             jump=True,
             write_back_source=WB_PC4,
-            second_add_source=PC_PLUS_IMM,
         )
 
 
@@ -227,36 +207,22 @@ async def jalr_test(dut):
             reg_write=True,
             jump=True,
             write_back_source=WB_PC4,
-            second_add_source=REG1_PLUS_IMM,
         )
 
 
 @cocotb.test()
-async def auipc_test(dut):
+async def lui_auipc_test(dut):
+    """The decoder output is now identical for both; the opcode tells them apart downstream."""
     s = SpadeExt(dut)
-    for _ in range(N_RANDOM):
-        await run(
-            s,
-            insn_word(OP_AUIPC),
-            imm_src=U_TYPE,
-            reg_write=True,
-            write_back_source=WB_UPPER,
-            second_add_source=PC_PLUS_IMM,
-        )
-
-
-@cocotb.test()
-async def lui_test(dut):
-    s = SpadeExt(dut)
-    for _ in range(N_RANDOM):
-        await run(
-            s,
-            insn_word(OP_LUI),
-            imm_src=U_TYPE,
-            reg_write=True,
-            write_back_source=WB_UPPER,
-            second_add_source=RAW_IMM,
-        )
+    for opcode in (OP_LUI, OP_AUIPC):
+        for _ in range(N_RANDOM):
+            await run(
+                s,
+                insn_word(opcode),
+                imm_src=U_TYPE,
+                reg_write=True,
+                write_back_source=WB_UPPER,
+            )
 
 
 @cocotb.test()

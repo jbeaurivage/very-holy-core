@@ -33,17 +33,12 @@ def junk(lo: int, hi: int) -> int:
     return random.getrandbits(hi - lo + 1) << lo
 
 
-def to_signed32(x: int) -> int:
-    """Wrap any Python int into the int<32> range."""
-    return ((x + (1 << 31)) & 0xFFFF_FFFF) - (1 << 31)
-
-
 async def check(s: SpadeExt, raw: int, source: str, expected: int):
     word = (raw << 7) | junk(0, 6)  # opcode bits must be ignored too
     s.i.insn = f"lib::control::Insn$(inner: {word})"
     s.i.imm_src = source
     await Timer(1, units="ns")
-    s.o.assert_eq(to_signed32(expected))
+    s.o.assert_eq(expected & MASK32)
 
 
 @cocotb.test()

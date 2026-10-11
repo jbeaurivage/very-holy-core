@@ -1,0 +1,59 @@
+use std::mem;
+use std::undef::undef;
+
+pub struct BramPort<#uint NumCol, #uint DataWidth, #uint AddrWidth> {
+    enable: inv bool,
+    addr: inv uint<AddrWidth>,
+    write_enable: inv uint<NumCol>,
+    write_data: inv uint<DataWidth>,
+
+    read_data: uint<DataWidth>,
+}
+
+impl<#uint NumCol, #uint DataWidth, #uint AddrWidth> BramPort<NumCol, DataWidth, AddrWidth> {
+    fn write_data(self, addr: uint<AddrWidth>, data: uint<DataWidth>, write_enable: uint<NumCol>){
+        set self.write_enable = write_enable;
+        set self.enable = true;
+        set self.addr = addr;
+        set self.write_data = data;
+    }
+
+    fn idle(self){
+        set self.write_enable = 0;
+        set self.enable = false;
+        set self.addr = undef();
+        set self.write_data = undef();
+    }
+
+    pub pipeline(1) read(
+        wire self,
+        clk: clock,
+        addr: uint<AddrWidth>
+    ) -> uint<DataWidth> {
+            set self.enable  = true;
+            set self.write_enable = 0;
+            set self.addr = addr;
+            set self.write_data = undef();
+
+            reg;
+
+            self.read_data
+    }
+
+
+    pub pipeline(1) read_data(
+        wire self,
+        clk: clock,
+    ) -> uint<DataWidth> {
+            reg;
+            self.read_data
+    }
+}
+
+pub pipeline(1) read<#uint NumCol, #uint AddrWidth, #uint DataWidth>(
+        clk: clock,
+        wire port: &BramPort<NumCol, AddrWidth, DataWidth>
+    ) -> uint<DataWidth> {
+            reg;
+            *port.read_data
+}

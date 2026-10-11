@@ -1,4 +1,5 @@
 use lib::control::Insn;
+use lib::control::Opcode;
 
 pub (lib) enum AluControl {
     Add,
@@ -71,4 +72,22 @@ pub(lib) fn alu(ctrl: AluControl, opa: uint<32>, opb: uint<32>) -> AluResult {
         zero: result == 0,
         less_than: less_than,
     )
+}
+
+/// Select the ALU's second operand between immediate and value coming from register
+pub(lib) fn select_opb(insn: Insn, imm: uint<32>, reg_val: uint<32>) -> uint<32> {
+    let opcode = insn.opcode();
+
+    match opcode {
+        Opcode::RType => reg_val,
+        Opcode::BType => reg_val,
+        Opcode::JType => reg_val,
+        Opcode::JTypeJalr => reg_val,
+
+        Opcode::ITypeAlu => imm,
+        Opcode::ITypeLoad => imm,
+        Opcode::SType => imm,
+
+        _ => undef(),
+    }
 }

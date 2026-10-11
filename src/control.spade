@@ -15,8 +15,8 @@ impl Insn {
         self.inner.as_bits()
     }
 
-    fn opcode(self) -> uint<7> {
-        self.as_bits()[0..7].to_uint()
+    fn opcode(self) -> Opcode {
+        Opcode::from_uint(self.as_bits()[0..7].to_uint())
     }
 
     fn func3(self) -> uint<3> {
@@ -78,11 +78,6 @@ impl Opcode {
     }
 }
 
-pub enum AluSource {
-    Src2,
-    Immediate,
-}
-
 pub enum WritebackSrc {
     AluResult,
     MemRead,
@@ -90,21 +85,13 @@ pub enum WritebackSrc {
     UpperImm,
 }
 
-pub enum SecondAddSource {
-    PcPlusImmediate,
-    Reg1PlusImmediate,
-    RawImmediate,
-}
-
 pub struct ControlOut {
     alu_control: AluControl,
     imm_src: ImmediateSource,
-    alu_source: AluSource,
     mem_write: bool,
     mem_read: bool,
     reg_write: bool,
     write_back_source: WritebackSrc,
-    second_add_source: SecondAddSource,
     branch: bool,
     jump: bool,
 }
@@ -150,7 +137,7 @@ fn alu_decode(opcode: Opcode, f3: uint<3>, f7: uint<7>) -> AluControl {
 }
 
 pub(lib) fn decode(insn: Insn) -> ControlOut {
-    let opcode = Opcode::from_uint(insn.opcode());
+    let opcode = insn.opcode();
     let f3 = insn.func3();
     let f7 = insn.func7();
     let alu_control = alu_decode(opcode, f3, f7);
@@ -166,12 +153,10 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
         Opcode::RType => ControlOut$(
             alu_control: alu_control,
             imm_src: undef(),
-            alu_source: AluSource::Src2,
             mem_write: false,
             mem_read: false,
             reg_write: true,
             write_back_source: WritebackSrc::AluResult,
-            second_add_source: undef(),
             branch: false,
             jump: false,
         ),
@@ -179,12 +164,10 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
         Opcode::ITypeAlu => ControlOut$(
             alu_control: alu_control,
             imm_src: ImmediateSource::I_type,
-            alu_source: AluSource::Immediate,
             mem_write: false,
             mem_read: false,
             reg_write: valid_shift,
             write_back_source: WritebackSrc::AluResult,
-            second_add_source: undef(),
             branch: false,
             jump: false,
         ),
@@ -192,12 +175,10 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
         Opcode::ITypeLoad => ControlOut$(
             alu_control: alu_control,
             imm_src: ImmediateSource::I_type,
-            alu_source: AluSource::Immediate,
             mem_write: false,
             mem_read: true,
             reg_write: true,
             write_back_source: WritebackSrc::MemRead,
-            second_add_source: undef(),
             branch: false,
             jump: false,
         ),
@@ -205,12 +186,10 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
         Opcode::SType => ControlOut$(
             alu_control: alu_control,
             imm_src: ImmediateSource::S_type,
-            alu_source: AluSource::Immediate,
             mem_write: true,
             mem_read: false,
             reg_write: false,
             write_back_source: undef(),
-            second_add_source: undef(),
             branch: false,
             jump: false,
         ),
@@ -218,12 +197,10 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
         Opcode::BType => ControlOut$(
             alu_control: alu_control,
             imm_src: ImmediateSource::B_type,
-            alu_source: AluSource::Src2,
             mem_write: false,
             mem_read: false,
             reg_write: false,
             write_back_source: undef(),
-            second_add_source: SecondAddSource::PcPlusImmediate,
             branch: true,
             jump: false,
         ),
@@ -231,12 +208,10 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
         Opcode::UTypeLui => ControlOut$(
             alu_control: alu_control,
             imm_src: ImmediateSource::U_type,
-            alu_source: undef(),
             mem_write: false,
             mem_read: false,
             reg_write: true,
             write_back_source: WritebackSrc::UpperImm,
-            second_add_source: SecondAddSource::RawImmediate,
             branch: false,
             jump: false,
         ),
@@ -244,12 +219,10 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
         Opcode::UTypeAuipc => ControlOut$(
             alu_control: alu_control,
             imm_src: ImmediateSource::U_type,
-            alu_source: undef(),
             mem_write: false,
             mem_read: false,
             reg_write: true,
             write_back_source: WritebackSrc::UpperImm,
-            second_add_source: SecondAddSource::PcPlusImmediate,
             branch: false,
             jump: false,
         ),
@@ -257,12 +230,10 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
         Opcode::JType => ControlOut$(
             alu_control: alu_control,
             imm_src: ImmediateSource::J_type,
-            alu_source: AluSource::Src2,
             mem_write: false,
             mem_read: false,
             reg_write: true,
             write_back_source: WritebackSrc::PcPlus4,
-            second_add_source: SecondAddSource::PcPlusImmediate,
             branch: false,
             jump: true,
         ),
@@ -270,12 +241,10 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
         Opcode::JTypeJalr => ControlOut$(
             alu_control: alu_control,
             imm_src: ImmediateSource::I_type,
-            alu_source: AluSource::Src2,
             mem_write: false,
             mem_read: false,
             reg_write: true,
             write_back_source: WritebackSrc::PcPlus4,
-            second_add_source: SecondAddSource::Reg1PlusImmediate,
             branch: false,
             jump: true,
         ),
@@ -284,19 +253,17 @@ pub(lib) fn decode(insn: Insn) -> ControlOut {
         Opcode::Unknown => ControlOut$(
             alu_control: alu_control,
             imm_src: undef(),
-            alu_source: undef(),
             mem_write: false,
             mem_read: false,
             reg_write: false,
             write_back_source: undef(),
-            second_add_source: undef(),
             branch: false,
             jump: false,
         ),
     }
 }
 
-pub(lib) fn pc_source(branch: bool, jump: bool, f3: uint<3>, alu_zero: bool, alu_less_than: bool) -> bool {
+pub fn do_jump(branch: bool, jump: bool, f3: uint<3>, alu_zero: bool, alu_less_than: bool) -> bool {
     let assert_branch = match f3 {
         0b000 => alu_zero,       // beq
         0b001 => !alu_zero,      // bne

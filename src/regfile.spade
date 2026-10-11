@@ -2,7 +2,7 @@ use std::mem;
 
 pub struct ReadPort<#uint W, D> {
     addr: inv uint<W>,
-    out: D
+    data: D
 }
 
 pub struct WritePort<#uint W, D> {
@@ -57,25 +57,4 @@ pub entity regfile(clk: clock) -> (
         ReadPort(read_addr1.1, r1),
         WritePort(write_addr.1, write_data.1)
     )
-}
-
-struct RegfileOut {
-    r0: uint<32>,
-    r1: uint<32>,
-}
-
-entity regfile_tb(
-    clk: clock,
-    read_addr0: uint<5>,
-    read_addr1: uint<5>,
-    write_addr: uint<5>,
-    write_enable: bool,
-    write_data: uint<32>,
-) -> RegfileOut {
-    let (rp0, rp1, wp) = inst regfile(clk);
-    set rp0.addr = read_addr0;
-    set rp1.addr = read_addr1;
-    set wp.addr = write_addr;
-    set wp.write = if write_enable { Some(write_data) } else { None() };
-    RegfileOut$(r0: rp0.out, r1: rp1.out)
 }

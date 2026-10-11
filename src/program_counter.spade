@@ -1,0 +1,42 @@
+use lib::control::{Insn, Opcode};
+use std::undef::undef;
+
+entity pc_impl(
+    clk: clock,
+    rst: bool,
+    jump: Option<uint<32>>,
+    pc_start: uint<32>
+) -> uint<32> {
+    reg(clk) pc reset(rst: pc_start) =
+        match jump {
+            Some(new_pc) => new_pc,
+            // Instructions are all 4 bytes
+            None => pc +. 4
+        };
+    pc
+}
+
+pub pipeline(1) program_counter(
+    clk: clock,
+    rst: bool,
+    jump: Option<uint<32>>,
+    pc_start: uint<32>,
+) -> uint<32> {
+    let pc = inst pc_impl$(clk, rst, jump, pc_start);
+        reg;
+    stage(-1).pc
+}
+
+// Responsible for any adder operations involving the PC
+pub fn pc_adder(insn: Insn, pc: uint<32>, opa: uint<32>, imm: uint<32>) -> uint<32> {
+    let (opa, opb) = match insn.opcode() {
+        Opcode::BType => (pc, imm),
+        Opcode::UTypeLui => (0, imm),
+        Opcode::UTypeAuipc => (pc, imm),
+        Opcode::JType => (pc, imm),
+        Opcode::JTypeJalr => (opa, imm),
+        _ => undef(),
+    };
+
+    opa +. opb
+}

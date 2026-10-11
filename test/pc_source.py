@@ -1,4 +1,4 @@
-# top = control::pc_source
+# top = control::do_jump
 
 import itertools
 
@@ -20,7 +20,7 @@ def model(branch: bool, jump: bool, f3: int, zero: bool, less_than: bool) -> boo
 
 
 @cocotb.test()
-async def pc_source_exhaustive_test(dut):
+async def pc_source_test(dut):
     """The whole input space is only 128 combinations, so check all of them."""
     s = SpadeExt(dut)
     for branch, jump, f3, zero, lt in itertools.product(

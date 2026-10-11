@@ -1,0 +1,59 @@
+use lib::control::ControlOut;
+use lib::mem_bus::BramPort;
+use std::undef::undef;
+use lib::load_store::load_store_unit;
+
+struct LsuTbOut {
+    enable: bool,
+    addr: uint<32>,
+    write_enable: uint<4>,
+    write_data: uint<32>,
+    load_valid: bool,
+    load_data: uint<32>,
+}
+
+entity lsu_tb(
+    clk: clock,
+    mem_read: bool,
+    mem_write: bool,
+    addr: uint<32>,
+    f3: uint<3>,
+    data: uint<32>,
+    mem_data: uint<32>,   // plays the role of the BRAM's read_data
+) -> LsuTbOut {
+    let enable: (bool, inv bool) = port();
+    let port_addr: (uint<32>, inv uint<32>) = port();
+    let write_enable: (uint<4>, inv uint<4>) = port();
+    let write_data: (uint<32>, inv uint<32>) = port();
+
+    let bram_port = BramPort$(
+        enable: enable.1,
+        addr: port_addr.1,
+        write_enable: write_enable.1,
+        write_data: write_data.1,
+        read_data: mem_data,
+    );
+
+    // Only the memory flags matter to the load/store unit
+    let control = ControlOut$(
+        alu_control: undef(),
+        imm_src: undef(),
+        mem_write: mem_write,
+        mem_read: mem_read,
+        reg_write: false,
+        write_back_source: undef(),
+        branch: false,
+        jump: false,
+    );
+
+    let load = inst(1) load_store_unit(clk, bram_port, control, addr, f3, data);
+
+    LsuTbOut$(
+        enable: enable.0,
+        addr: port_addr.0,
+        write_enable: write_enable.0,
+        write_data: write_data.0,
+        load_data: load.unwrap_or_undef(),
+        load_valid: load.is_some(),
+    )
+}

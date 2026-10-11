@@ -2,3 +2,101 @@ mod immediates;
 mod control;
 mod alu;
 mod regfile;
+mod program_counter;
+mod load_store;
+mod mem_bus;
+mod hazard;
+
+mod tests;
+
+use control::Insn;
+
+struct ImemReadPort {
+    addr: inv uint<32>,
+    insn: Insn,
+}
+
+impl ImemReadPort {
+    pipeline(1) read(wire self, clk: clock, addr: uint<32>) -> Insn {
+            set self.addr = addr;
+        reg;
+            self.insn
+    }
+}
+
+pipeline(3) cpu<#uint RamAddrWidth>
+    (
+        clk: clock,
+        rst: bool,
+        wire imem_read: ImemReadPort,
+        wire dmem_port: mem_bus::BramPort::<4, 32, RamAddrWidth>,
+        pc_start: uint<32>,
+    )
+{
+    'pc
+        let pc = inst(1) program_counter::program_counter$(
+            clk,
+            rst,
+            jump: stage(execute).jump_target,
+            pc_start
+        );
+    reg;
+
+    'fetch
+        let insn = imem_read.inst(1) read(clk, pc);
+    reg;
+
+    'execute
+        let control_signals = control::decode(insn);
+        let imm = immediates::signext_immediate(insn, control_signals.imm_src);
+
+        let (wire regfile_read0, wire regfile_read1, wire regfile_write) = inst regfile::regfile(clk);
+
+        let rs1 = insn.rs1();
+        let rs2 = insn.rs2();
+        set regfile_write.addr = insn.rd();
+
+        set regfile_read0.addr = rs1;
+        set regfile_read1.addr = rs2;
+
+        let opa = regfile_read0.data;
+        let opb = alu::select_opb$(insn, imm, reg_val: regfile_read1.data);
+        let alu_result = alu::alu$(opa, opb, ctrl: control_signals.alu_control);
+
+        let do_jump = control::do_jump$(
+            branch: control_signals.branch,
+            jump: control_signals.jump,
+            f3: insn.func3(),
+            alu_zero: alu_result.zero,
+            alu_less_than: alu_result.less_than,
+        );
+
+        let pc_with_add = program_counter::pc_adder(insn, pc, opa, imm);
+        let jump_target = if do_jump {
+            Some(pc_with_add)
+        } else {
+            None
+        };
+
+        set regfile_write.write = if control_signals.reg_write {
+            Some(alu_result.result)
+        } else {
+            None
+        };
+
+        // read_data will be available at next pipeline stage
+        let read_data = inst(1) load_store::load_store_unit$(
+            clk,
+            mem_port: dmem_port,
+            control: control_signals,
+            addr: alu_result.result,
+            f3: insn.func3(),
+            data: opb,
+        );
+
+    reg;
+    'mem_wb
+
+
+
+}

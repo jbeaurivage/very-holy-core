@@ -1,4 +1,4 @@
-# top = regfile::regfile_tb
+# top = tests::regfile::regfile
 
 import random
 

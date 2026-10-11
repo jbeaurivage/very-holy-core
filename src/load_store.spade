@@ -1,0 +1,92 @@
+use lib::mem_bus;
+use lib::control::ControlOut;
+use std::undef::undef;
+
+pub(lib) pipeline(1) load_store_unit(
+    clk: clock,
+    wire mem_port: mem_bus::BramPort<4, 32, 32>,
+    control: ControlOut,
+    addr: uint<32>,
+    f3: uint<3>,
+    data: uint<32>,
+) -> Option<uint<32>> {
+    // Normally max 2 bits, which we extend to 4 to satisfy the Spade compiler
+    // which requires shift amounts to be the same length as the shiftee
+    let offset: uint<4> = zext(addr.as_bits()[0..2].as_uint());
+
+    let (byte_mask, write_data) = match f3 {
+        // sb, lb
+        0b000 => (0b0001 << offset, (data & 0xFF) << offset * 8),
+        // lbu, same as sb/lb
+        0b100 => (0b0001 << offset, (data & 0xFF) << offset * 8),
+        // lh, sh
+        0b001 => match offset {
+            0b00 => (0b0011, data & 0xFFFF),
+            0b10 => (0b1100, (data & 0xFFFF) << 16),
+            // noop for unsupported types
+            _ => (0b0000, undef()),
+        },
+        // lhu, same as lh/sh
+        0b101 => match offset {
+                0b00 => (0b0011, data & 0xFFFF),
+                0b10 => (0b1100, (data & 0xFFFF) << 16),
+                // noop for unsupported types
+                _ => (0b0000, undef()),
+        },
+        // lw, sw
+        // Disallow misaligned writes by simply not performing them
+        0b010 => (if offset == 0b00 { 0b1111 } else { 0b0000 }, data),
+
+        _ => { (0b00, undef())}
+    };
+
+    set mem_port.enable = control.mem_read || control.mem_write;
+    set mem_port.addr = addr;
+    // Disable writes if we're doing a read
+    set mem_port.write_enable = [control.mem_write; 4].as_uint() & byte_mask;
+    set mem_port.write_data = write_data;
+
+    reg;
+
+    let mem_data = mem_port.read_data;
+
+    // Apply the byte-enable mask: widen each mask bit into an 8-bit lane
+    let lanes = byte_mask.as_bits();
+    let mask: uint<32> = [lanes[0]; 8]
+        .concat([lanes[1]; 8])
+        .concat([lanes[2]; 8])
+        .concat([lanes[3]; 8])
+        .to_uint();
+    let masked = mem_data & mask;
+
+    let shifted = match offset {
+        0b00 => masked,
+        0b01 => masked >> 8,
+        0b10 => masked >> 16,
+        _ => masked >> 24,
+    };
+
+    let bits = shifted.as_bits();
+    let byte_signed: int<32> = sext(bits[0..8].as_int());
+    let half_signed: int<32> = sext(bits[0..16].as_int());
+
+    let result = match f3 {
+        // lb
+        0b000 => byte_signed.as_uint(),
+        // lbu
+        0b100 => shifted,
+        // lh
+        0b001 => half_signed.as_uint(),
+        // lhu
+        0b101 => shifted,
+        // lw
+        0b010 => shifted,
+        _ => undef(),
+    };
+
+    if byte_mask != 0 {
+        Some(result)
+    } else {
+        None
+    }
+}
