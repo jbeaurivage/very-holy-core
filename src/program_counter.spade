@@ -1,34 +1,32 @@
 use lib::control::{Insn, Opcode};
 use std::undef::undef;
 
-entity pc_impl(
-    clk: clock,
-    rst: bool,
-    jump: Option<uint<32>>,
-    pc_start: uint<32>
-) -> uint<32> {
-    reg(clk) pc reset(rst: pc_start) =
-        match jump {
-            Some(new_pc) => new_pc,
-            // Instructions are all 4 bytes
-            None => pc +. 4
-        };
-    pc
-}
-
-pub pipeline(1) program_counter(
+pub entity program_counter(
     clk: clock,
     rst: bool,
     jump: Option<uint<32>>,
     pc_start: uint<32>,
 ) -> uint<32> {
-    let pc = inst pc_impl$(clk, rst, jump, pc_start);
-        reg;
-    stage(-1).pc
+    decl pc;
+
+    // Address to fetch next cycle if nothing jumps: this cycle's fetch + 4
+    reg(clk) next_seq: uint<32> reset(rst: pc_start) = pc +. 4;
+
+    // A jump from the execute stage overrides the fetch address immediately
+    let pc = if rst {
+        pc_start
+    } else {
+        match jump {
+            Some(target) => target,
+            None => next_seq,
+        }
+    };
+
+    pc
 }
 
-// Responsible for any adder operations involving the PC
-pub fn pc_adder(insn: Insn, pc: uint<32>, opa: uint<32>, imm: uint<32>) -> uint<32> {
+/// Responsible for any adder operations involving the PC.
+pub fn pc_adder(insn: Insn, pc: uint<32>, opa: uint<32>, imm: uint<32>) -> (uint<32>, uint<32>) {
     let (opa, opb) = match insn.opcode() {
         Opcode::BType => (pc, imm),
         Opcode::UTypeLui => (0, imm),
@@ -38,5 +36,5 @@ pub fn pc_adder(insn: Insn, pc: uint<32>, opa: uint<32>, imm: uint<32>) -> uint<
         _ => undef(),
     };
 
-    opa +. opb
+    (opa +. opb, pc +. 4)
 }

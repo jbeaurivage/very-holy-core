@@ -1,0 +1,23 @@
+pub fn hazard_unit(
+    rs1_x: uint<5>,
+    rs2_x: uint<5>,
+    rd_m: uint<5>,
+
+    reg_val_1_x: uint<32>,
+    reg_val_2_x: uint<32>,
+    wb_m: Option<uint<32>>,
+) -> (uint<32>, uint<32>) {
+    let opa = if rs1_x != 0 && rs1_x == rd_m {
+        wb_m.unwrap_or(reg_val_1_x)
+    } else {
+        reg_val_1_x
+    };
+
+    let opb = if rs2_x != 0 && rs2_x == rd_m {
+        wb_m.unwrap_or(reg_val_2_x)
+    } else {
+        reg_val_2_x
+    };
+
+    (opa, opb)
+}

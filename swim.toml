@@ -2,4 +2,4 @@ name = "holy_spade"
 
 [simulation]
 testbench_dir = "test"
-python_deps = ["numpy"]
+python_deps = [ "numpy", "pyelftools" ]

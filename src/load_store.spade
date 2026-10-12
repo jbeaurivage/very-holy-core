@@ -2,11 +2,12 @@ use lib::mem_bus;
 use lib::control::ControlOut;
 use std::undef::undef;
 
-pub(lib) pipeline(1) load_store_unit(
+pub(lib) pipeline(1) load_store_unit<#uint AddrWidth>(
     clk: clock,
-    wire mem_port: mem_bus::BramPort<4, 32, 32>,
+    rst: bool,
+    wire mem_port: mem_bus::BramPort<4, 32, AddrWidth>,
     control: ControlOut,
-    addr: uint<32>,
+    addr: uint<AddrWidth>,
     f3: uint<3>,
     data: uint<32>,
 ) -> Option<uint<32>> {

@@ -1,0 +1,6 @@
+impl<T> Option<T> {
+    entity keep_last(self, clk: clock, rst: bool) -> Option<T> {
+        reg(clk) val reset(rst: None) = if self.is_some() {self} else {val};
+        val
+    }
+}

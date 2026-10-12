@@ -14,6 +14,7 @@ struct LsuTbOut {
 
 entity lsu_tb(
     clk: clock,
+    rst: bool,
     mem_read: bool,
     mem_write: bool,
     addr: uint<32>,
@@ -40,13 +41,12 @@ entity lsu_tb(
         imm_src: undef(),
         mem_write: mem_write,
         mem_read: mem_read,
-        reg_write: false,
-        write_back_source: undef(),
+        writeback: None,
         branch: false,
         jump: false,
     );
 
-    let load = inst(1) load_store_unit(clk, bram_port, control, addr, f3, data);
+    let load = inst(1) load_store_unit(clk, rst, bram_port, control, addr, f3, data);
 
     LsuTbOut$(
         enable: enable.0,

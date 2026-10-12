@@ -46,7 +46,13 @@ def insn_word(opcode: int, f3: int | None = None, f7: int | None = None) -> int:
 # Flags that are meaningful for every instruction; tests override what differs.
 # imm_src / write_back_source are undef() for some opcodes, so they are only
 # asserted where the decoder actually defines them.
-BASE = dict(mem_write=False, mem_read=False, reg_write=False, branch=False, jump=False)
+BASE = {
+    "mem_write": False,
+    "mem_read": False,
+    "writeback": "None",
+    "branch": False,
+    "jump": False,
+}
 
 
 async def run(s: SpadeExt, word: int, **expected):
@@ -66,8 +72,7 @@ async def load_test(dut):  # lw
             alu_control=ADD,
             imm_src=I_TYPE,
             mem_read=True,
-            reg_write=True,
-            write_back_source=WB_MEM,
+            writeback=f"Some({WB_MEM})",
         )
 
 
@@ -107,8 +112,7 @@ async def r_type_test(dut):
                 s,
                 insn_word(OP_R, f3=f3, f7=f7),
                 alu_control=alu,
-                reg_write=True,
-                write_back_source=WB_ALU,
+                writeback=f"Some({WB_ALU})",
             )
 
 
@@ -133,8 +137,7 @@ async def i_type_alu_test(dut):
                 insn_word(OP_I_ALU, f3=f3),
                 alu_control=alu,
                 imm_src=I_TYPE,
-                reg_write=True,
-                write_back_source=WB_ALU,
+                writeback=f"Some({WB_ALU})",
             )
 
 
@@ -149,13 +152,17 @@ async def shift_immediate_test(dut):
                 alu = SLL
             else:
                 alu = {0b0000000: SRL, 0b0100000: SRA}.get(f7, UNKNOWN)
+
+            if valid:
+                writeback = f"Some({WB_ALU})"
+            else:
+                writeback = "None"
             await run(
                 s,
                 insn_word(OP_I_ALU, f3=f3, f7=f7),
                 alu_control=alu,
                 imm_src=I_TYPE,
-                reg_write=valid,
-                write_back_source=WB_ALU,
+                writeback=writeback,
             )
 
 
@@ -190,9 +197,8 @@ async def jal_test(dut):
             s,
             insn_word(OP_JAL),
             imm_src=J_TYPE,
-            reg_write=True,
             jump=True,
-            write_back_source=WB_PC4,
+            writeback=f"Some({WB_PC4})",
         )
 
 
@@ -204,9 +210,8 @@ async def jalr_test(dut):
             s,
             insn_word(OP_JALR),
             imm_src=I_TYPE,
-            reg_write=True,
             jump=True,
-            write_back_source=WB_PC4,
+            writeback=f"Some({WB_PC4})",
         )
 
 
@@ -220,8 +225,7 @@ async def lui_auipc_test(dut):
                 s,
                 insn_word(opcode),
                 imm_src=U_TYPE,
-                reg_write=True,
-                write_back_source=WB_UPPER,
+                writeback=f"Some({WB_UPPER})",
             )
 
 

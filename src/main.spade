@@ -6,10 +6,11 @@ mod program_counter;
 mod load_store;
 mod mem_bus;
 mod hazard;
+mod option_ext;
 
 mod tests;
 
-use control::Insn;
+use control::{WritebackSrc, Insn};
 
 struct ImemReadPort {
     addr: inv uint<32>,
@@ -24,29 +25,35 @@ impl ImemReadPort {
     }
 }
 
-pipeline(3) cpu<#uint RamAddrWidth>
+struct SimInfo {
+    last_write: Option<uint<32>>,
+    ecall: bool,
+}
+
+pipeline(2) cpu<#uint RamAddrWidth>
     (
         clk: clock,
-        rst: bool,
+        wire rst: bool,
         wire imem_read: ImemReadPort,
         wire dmem_port: mem_bus::BramPort::<4, 32, RamAddrWidth>,
-        pc_start: uint<32>,
+        wire pc_start: uint<32>,
+        wire sim_info: inv SimInfo,
     )
 {
-    'pc
-        let pc = inst(1) program_counter::program_counter$(
+    'fetch
+        let pc = inst program_counter::program_counter$(
             clk,
             rst,
             jump: stage(execute).jump_target,
             pc_start
         );
-    reg;
 
-    'fetch
         let insn = imem_read.inst(1) read(clk, pc);
     reg;
 
     'execute
+        // Insert NOPs into the pipeline until reset is deasserted
+        let insn = if rst { Insn(0x13) } else { insn };
         let control_signals = control::decode(insn);
         let imm = immediates::signext_immediate(insn, control_signals.imm_src);
 
@@ -54,13 +61,21 @@ pipeline(3) cpu<#uint RamAddrWidth>
 
         let rs1 = insn.rs1();
         let rs2 = insn.rs2();
-        set regfile_write.addr = insn.rd();
+        let rd = insn.rd();
 
         set regfile_read0.addr = rs1;
         set regfile_read1.addr = rs2;
 
-        let opa = regfile_read0.data;
-        let opb = alu::select_opb$(insn, imm, reg_val: regfile_read1.data);
+        let (opa, reg_b) = hazard::hazard_unit$(
+            rs1_x: rs1,
+            rs2_x: rs2,
+            rd_m: stage(mem_wb).rd,
+            reg_val_1_x: regfile_read0.data,
+            reg_val_2_x: regfile_read1.data,
+            wb_m: stage(mem_wb).writeback_data
+        );
+
+        let opb = alu::select_opb$(insn, imm, reg_val: reg_b);
         let alu_result = alu::alu$(opa, opb, ctrl: control_signals.alu_control);
 
         let do_jump = control::do_jump$(
@@ -71,32 +86,57 @@ pipeline(3) cpu<#uint RamAddrWidth>
             alu_less_than: alu_result.less_than,
         );
 
-        let pc_with_add = program_counter::pc_adder(insn, pc, opa, imm);
+        let (pc_with_add, pc_plus_4) = program_counter::pc_adder(insn, pc, opa, imm);
         let jump_target = if do_jump {
             Some(pc_with_add)
         } else {
             None
         };
 
-        set regfile_write.write = if control_signals.reg_write {
-            Some(alu_result.result)
-        } else {
-            None
-        };
-
         // read_data will be available at next pipeline stage
-        let read_data = inst(1) load_store::load_store_unit$(
+        let read_data = inst(1) load_store::load_store_unit::<RamAddrWidth>$(
             clk,
+            rst,
             mem_port: dmem_port,
             control: control_signals,
-            addr: alu_result.result,
+            addr: trunc(alu_result.result),
             f3: insn.func3(),
-            data: opb,
+            data: reg_b,
         );
 
     reg;
     'mem_wb
 
+        let writeback_data = control_signals.writeback.and_then(fn |src| {
+            match src {
+                WritebackSrc::AluResult => Some(alu_result.result),
+                WritebackSrc::MemRead => read_data,
+                WritebackSrc::PcPlus4 => Some(pc_plus_4),
+                WritebackSrc::UpperImm => Some(pc_with_add),
+            }
+        });
+
+        set regfile_write.addr = rd;
+        set regfile_write.write = writeback_data;
 
 
+        set sim_info = SimInfo$(
+            last_write: writeback_data
+                .and_then(fn |val| if rd != 0 {Some(val)} else {None})
+                .inst keep_last(clk, rst),
+            ecall: insn.is_ecall()
+        );
+
+}
+
+entity cpu_tb(
+    clk: clock,
+    rst: bool,
+    imem_read: ImemReadPort,
+    dmem_port: mem_bus::BramPort::<4, 32, 12>,
+    pc_start: uint<32>,
+    sim_info: inv SimInfo,
+) -> bool {
+    let _ = inst(2) cpu::<12>(clk, rst, imem_read, dmem_port, pc_start, sim_info);
+    true
 }

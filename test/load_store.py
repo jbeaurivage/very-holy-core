@@ -47,6 +47,9 @@ def load_value(f3: int, offset: int, mem_data: int) -> int:
 async def load_store_unit_test(dut):
     s = SpadeExt(dut)
     cocotb.start_soon(Clock(dut.clk_i, 10, units="ns").start())
+    s.i.rst = True
+    await RisingEdge(dut.clk_i)
+    s.i.rst = False
     await RisingEdge(dut.clk_i)
 
     # (mem_read, mem_write): a load, a store, and an idle cycle
