@@ -118,10 +118,7 @@ async def emulate_data_memory(clk, s: SpadeExt, insns: Dict[int, str]):
     Byte lanes are selected by the `write_enable` mask on writes.
 
     Validity rules:
-      - `enable` or `write_enable` being x/z makes the request invalid: it is
-        ignored completely (no read data update, no write). During reset this
-        is expected, so it is silent for an undefined `enable`.
-      - `write_data` is only looked at when a write is actually happening.
+           - `write_data` is only looked at when a write is actually happening.
       - An x/z address on a valid read returns 0xBAD_C0DE.
     """
     port = s.i.dmem_port
@@ -131,12 +128,12 @@ async def emulate_data_memory(clk, s: SpadeExt, insns: Dict[int, str]):
         enable = int_or_none(port.enable)
         we = int_or_none(port.write_enable)
 
-        valid = enable is not None and we is not None
-        if enable is not None and we is None:
-            # Port enabled but byte write enable is undefined -> a real problem
-            print("WARNING: dmem write_enable is x/z while enabled, ignoring request")
+        if enable is None or we is None:
+            raise AssertionError(
+                "Memory enable signals should always be valid after reset assert"
+            )
 
-        if not valid or not enable:
+        if not enable:
             await RisingEdge(clk)
             continue
 
@@ -188,11 +185,11 @@ async def setup_test(dut: SimHandleBase, insns: Dict[int, str]):
     cocotb.start_soon(emulate_insn_memory(clk, s, insns))
     cocotb.start_soon(emulate_data_memory(clk, s, insns))
 
-    s.i.rst = "true"
-    await triggers.ClockCycles(clk, 10)
+    s.i.rst = True
+    await triggers.ClockCycles(clk, 2)
     # Wait another half cycle for everything to align
     await FallingEdge(clk)
-    s.i.rst = "false"
+    s.i.rst = False
 
     return s
 

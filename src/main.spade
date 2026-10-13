@@ -33,6 +33,7 @@ struct SimInfo {
 pipeline(2) cpu<#uint RamAddrWidth>
     (
         clk: clock,
+        // reset must be held for at least 2 cycles
         wire rst: bool,
         wire imem_read: ImemReadPort,
         wire dmem_port: mem_bus::BramPort::<4, 32, RamAddrWidth>,
@@ -41,6 +42,8 @@ pipeline(2) cpu<#uint RamAddrWidth>
     )
 {
     'fetch
+        let rst_pipelined = rst;
+
         let pc = inst program_counter::program_counter$(
             clk,
             rst,
